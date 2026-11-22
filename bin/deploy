@@ -50,6 +50,11 @@ if ssh "$HOST" 'sudo -n -l /usr/local/libexec/familytimer/update' >/dev/null 2>&
     ssh "$HOST" 'sudo -n /usr/local/libexec/familytimer/update ~/.familytimer-stage'
 else
     echo "(first install: the admin password of $HOST is needed once)"
+    if [ ! -t 0 ]; then
+        echo "No terminal to type it in. The files are staged on $HOST; run:"
+        echo "  ssh -t $HOST 'sudo bash ~/.familytimer-stage/update ~/.familytimer-stage'"
+        exit 2
+    fi
     ssh -t "$HOST" 'sudo bash ~/.familytimer-stage/update ~/.familytimer-stage'
 fi
 ssh "$HOST" 'rm -rf ~/.familytimer-stage'
