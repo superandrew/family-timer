@@ -262,9 +262,10 @@ parents say which Mac and which child account.
   access" in the energy settings, or wake it before deploying.
 - Per-Mac details (host, admin, child account, CPU, macOS) live in the local file next to the
   secrets, never in the repository.
-- A Mac may still run the old minertimer (`/Library/LaunchDaemons/com.soferio.minertimer_daily_timer.plist`):
-  leave it during `DRY_RUN`; the real install boots it out and moves its plist aside (kept,
-  not deleted) so the two never both enforce.
+- A Mac may also run the old minertimer (`/Library/LaunchDaemons/com.soferio.minertimer_daily_timer.plist`),
+  which closes Minecraft after its own daily limit. The two are independent and are kept
+  together: Minecraft time also counts for FamilyTimer. `/extra` does not extend Minecraft.
+  Per-app limits controlled from Telegram are a candidate for v2.
 
 ## 8. Open questions
 
