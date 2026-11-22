@@ -28,13 +28,25 @@ echo "== building (release, $ARCH)"
 swift build -c release --arch "$ARCH" >/dev/null
 PRODUCTS=$(swift build -c release --arch "$ARCH" --show-bin-path)
 
+# A stable signing identity keeps macOS permissions (Accessibility) across deploys: they are
+# tied to the signature, and an ad hoc signature changes with every build (docs/DEPLOY.md).
+SIGN_DIR="$HOME/.config/familytimer/signing"
+IDENTITY=-
+if [ -f "$SIGN_DIR/cert.pem" ] && [ -f "$SIGN_DIR/familytimer.keychain-db" ]; then
+    security unlock-keychain -p "$(cat "$SIGN_DIR/keychain.pass")" "$SIGN_DIR/familytimer.keychain-db"
+    IDENTITY=$(openssl x509 -in "$SIGN_DIR/cert.pem" -noout -fingerprint -sha1 | cut -d= -f2 | tr -d :)
+else
+    echo "(no signing identity in $SIGN_DIR: ad hoc signature, permissions reset at every deploy)"
+fi
+
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
 chmod 700 "$STAGE"
 for bin in familytimerd FamilyTimerAgent; do
     if [ -f "$PRODUCTS/$bin" ]; then
         cp "$PRODUCTS/$bin" "$STAGE/$bin"
-        codesign --force --sign - --options runtime "$STAGE/$bin" 2>/dev/null
+        codesign --force --sign "$IDENTITY" --identifier "com.2manyclicks.familytimer.$bin" \
+            --options runtime "$STAGE/$bin" 2>/dev/null
     fi
 done
 cp deploy/update "$STAGE/update"

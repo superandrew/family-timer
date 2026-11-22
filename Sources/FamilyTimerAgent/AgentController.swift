@@ -20,6 +20,11 @@ final class AgentController: NSObject {
     private var expiredShown = false
     private var asked = false
     private var dryRunLockLogged = false
+    private var askState: AskState = .unavailable
+    /// While locked: the child unlocked and sees the small window until this time.
+    private var holdUntil: Date?
+    /// The last time that window was offered: at most once a minute, then lock at once.
+    private var lastOffered: Date?
 
     init(socketPath: String) {
         connection = AgentConnection(path: socketPath)
@@ -61,6 +66,7 @@ final class AgentController: NSObject {
             statusItem.isVisible = true
             if let language = message.language { self.language = language }
             dryRun = message.dryRun ?? false
+            askState = message.askState ?? .unavailable
             let previous = remaining
             remaining = message.remaining
             graceRemaining = message.graceRemaining
@@ -83,7 +89,7 @@ final class AgentController: NSObject {
                         primary: AgentTexts.okButton(language))
         case .lock:
             setPhase(.locked)
-            lockLoop()
+            lockLoop(immediate: true)
         case .unlock:
             setPhase(.open)
         }
@@ -94,11 +100,13 @@ final class AgentController: NSObject {
             expiredShown = false
             asked = false
             dryRunLockLogged = false
-        }
-        if new == .locked {
-            notice.close()
+            holdUntil = nil
+            lastOffered = nil
         }
         let entered = new != phase
+        if entered && new == .locked {
+            notice.close()
+        }
         phase = new
         if entered && (new == .grace || new == .pending) && !expiredShown {
             showExpired()
@@ -126,7 +134,11 @@ final class AgentController: NSObject {
     }
 
     @objc private func askPressed() {
-        ask()
+        if phase == .locked {
+            askWhileLocked()
+        } else {
+            ask()
+        }
     }
 
     private func refreshMenu() {
@@ -136,16 +148,20 @@ final class AgentController: NSObject {
         statusItem.button?.title = title
         statusLine.title = title
         askItem.title = AgentTexts.askButton(language)
-        askItem.isEnabled = phase == .grace && !asked
+        askItem.isEnabled = (phase == .grace && !asked) || (phase == .locked && askState == .available)
     }
 
     // MARK: lock loop
 
-    /// Every 3 s while locked: lock again if the child unlocked (SPEC 3.2).
-    private func lockLoop() {
+    /// Every 3 s while locked: lock again if the child unlocked (SPEC 3.2). When the child
+    /// unlocks, a small window first says why and, if allowed, offers "Ask for more time"
+    /// (15 s, or 5 s with nothing to ask); then the screen locks again. The window is offered
+    /// at most once a minute, so the daemon's 30 s lock check is never missed for long.
+    private func lockLoop(immediate: Bool = false) {
         guard phase == .locked else { return }
         if Screen.isLocked() {
             connection.send(.locked)
+            holdUntil = nil
             return
         }
         if dryRun {
@@ -155,7 +171,60 @@ final class AgentController: NSObject {
             }
             return
         }
+        let now = Date()
+        if immediate {
+            lockNow()
+            return
+        }
+        if let holdUntil {
+            if now >= holdUntil { lockNow() }
+            return
+        }
+        if let lastOffered, now.timeIntervalSince(lastOffered) < 60 {
+            lockNow()
+            return
+        }
+        lastOffered = now
+        let ok = AgentTexts.okButton(language)
+        switch askState {
+        case .available:
+            hold(15)
+            notice.show(AgentTexts.lockedAsk(language), primary: ok, { [weak self] in self?.lockNow() },
+                        secondary: AgentTexts.askButton(language), { [weak self] in self?.askWhileLocked() })
+        case .waiting:
+            hold(5)
+            notice.show(AgentTexts.lockedWaiting(language), primary: ok, { [weak self] in self?.lockNow() })
+        case .denied:
+            hold(5)
+            notice.show(AgentTexts.lockedDenied(language), primary: ok, { [weak self] in self?.lockNow() })
+        case .unavailable:
+            hold(5)
+            notice.show(AgentTexts.lockedOver(language), primary: ok, { [weak self] in self?.lockNow() })
+        }
+    }
+
+    private func hold(_ seconds: TimeInterval) {
+        holdUntil = Date().addingTimeInterval(seconds)
+        DispatchQueue.main.asyncAfter(deadline: .now() + seconds + 0.1) { [weak self] in
+            self?.lockLoop()
+        }
+    }
+
+    private func lockNow() {
+        holdUntil = nil
+        notice.close()
+        guard phase == .locked, !dryRun, !Screen.isLocked() else { return }
         Screen.lock()
+    }
+
+    private func askWhileLocked() {
+        guard phase == .locked, askState == .available else { return }
+        askState = .waiting
+        connection.send(.requestTime)
+        notice.show(AgentTexts.lockedWaiting(language), primary: AgentTexts.okButton(language),
+                    { [weak self] in self?.lockNow() })
+        hold(3)
+        refreshMenu()
     }
 }
 

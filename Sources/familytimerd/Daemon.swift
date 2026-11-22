@@ -111,7 +111,8 @@ actor Daemon {
             phase: state.phase,
             graceRemaining: state.graceUntil.map { max(0, Int($0.timeIntervalSince(now))) },
             dryRun: dryRun,
-            language: config.language))
+            language: config.language,
+            askState: Policy.askState(state, config: config)))
     }
 
     func agentMessage(_ message: AgentMessage) async {
