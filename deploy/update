@@ -1,0 +1,104 @@
+#!/bin/bash
+# FamilyTimer updater: runs as root on the child's Mac (SPEC 7.2).
+#
+#   sudo update STAGE_DIR
+#
+# STAGE_DIR is the folder bin/deploy filled in the admin's home: familytimerd,
+# FamilyTimerAgent (optional), config, dry-run (optional marker) and this script.
+# The first run (with the admin password) also installs this script as
+# /usr/local/libexec/familytimer/update and the sudoers rule that lets the admin run
+# only that file without a password.
+set -euo pipefail
+
+BUNDLE_ID=com.2manyclicks.familytimer
+LIBEXEC=/usr/local/libexec/familytimer
+SUPPORT="/Library/Application Support/FamilyTimer"
+DAEMON_PLIST=/Library/LaunchDaemons/$BUNDLE_ID.daemon.plist
+AGENT_PLIST=/Library/LaunchAgents/$BUNDLE_ID.agent.plist
+SUDOERS=/etc/sudoers.d/familytimer
+LOG=/var/log/familytimer.log
+
+[ "$(id -u)" = 0 ] || { echo "run with sudo" >&2; exit 1; }
+STAGE=${1:?usage: update STAGE_DIR}
+ADMIN=${SUDO_USER:?run through sudo}
+
+# The stage must belong to the admin who ran sudo and be writable only by them.
+owner=$(stat -f %Su "$STAGE")
+mode=$(stat -f %Lp "$STAGE")
+[ "$owner" = "$ADMIN" ] || { echo "$STAGE is not owned by $ADMIN" >&2; exit 1; }
+case $mode in 700|750|755) ;; *) echo "$STAGE must not be writable by others (mode $mode)" >&2; exit 1;; esac
+[ -f "$STAGE/familytimerd" ] && [ -f "$STAGE/config" ] || { echo "incomplete stage" >&2; exit 1; }
+
+echo "== installing binaries"
+install -d -o root -g wheel -m 755 "$LIBEXEC"
+install -o root -g wheel -m 755 "$STAGE/familytimerd" "$LIBEXEC/familytimerd"
+if [ -f "$STAGE/FamilyTimerAgent" ]; then
+    install -o root -g wheel -m 755 "$STAGE/FamilyTimerAgent" "$LIBEXEC/FamilyTimerAgent"
+fi
+install -o root -g wheel -m 755 "$STAGE/update" "$LIBEXEC/update"
+
+echo "== installing config"
+install -d -o root -g wheel -m 755 "$SUPPORT"
+install -o root -g wheel -m 600 "$STAGE/config" "$SUPPORT/config"
+touch "$LOG"; chown root:wheel "$LOG"; chmod 644 "$LOG"
+
+dry_run_env=""
+if [ -f "$STAGE/dry-run" ]; then
+    echo "== DRY_RUN: the daemon logs instead of logging the child out"
+    dry_run_env="<key>EnvironmentVariables</key><dict><key>DRY_RUN</key><string>1</string></dict>"
+fi
+
+echo "== installing the LaunchDaemon"
+cat > "$DAEMON_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>$BUNDLE_ID.daemon</string>
+<key>ProgramArguments</key><array><string>$LIBEXEC/familytimerd</string></array>
+$dry_run_env
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/>
+<key>ThrottleInterval</key><integer>10</integer>
+<key>StandardOutPath</key><string>$LOG</string>
+<key>StandardErrorPath</key><string>$LOG</string>
+</dict></plist>
+EOF
+chown root:wheel "$DAEMON_PLIST"; chmod 644 "$DAEMON_PLIST"
+launchctl bootout "system/$BUNDLE_ID.daemon" 2>/dev/null || true
+launchctl bootstrap system "$DAEMON_PLIST"
+
+if [ -f "$LIBEXEC/FamilyTimerAgent" ]; then
+    echo "== installing the LaunchAgent"
+    cat > "$AGENT_PLIST" <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>$BUNDLE_ID.agent</string>
+<key>ProgramArguments</key><array><string>$LIBEXEC/FamilyTimerAgent</string></array>
+<key>LimitLoadToSessionType</key><string>Aqua</string>
+<key>RunAtLoad</key><true/>
+<key>KeepAlive</key><true/>
+</dict></plist>
+EOF
+    chown root:wheel "$AGENT_PLIST"; chmod 644 "$AGENT_PLIST"
+    # Restart the agent in the session at the console, if any.
+    console_uid=$(stat -f %u /dev/console)
+    if [ "$console_uid" != 0 ]; then
+        launchctl bootout "gui/$console_uid/$BUNDLE_ID.agent" 2>/dev/null || true
+        launchctl bootstrap "gui/$console_uid" "$AGENT_PLIST" 2>/dev/null || true
+    fi
+fi
+
+if [ ! -f "$SUDOERS" ]; then
+    echo "== installing the sudoers rule for $ADMIN"
+    tmp=$(mktemp)
+    echo "$ADMIN ALL=(root) NOPASSWD: $LIBEXEC/update" > "$tmp"
+    visudo -cf "$tmp" >/dev/null
+    install -o root -g wheel -m 440 "$tmp" "$SUDOERS"
+    rm -f "$tmp"
+fi
+
+sleep 2
+echo "== status"
+launchctl print "system/$BUNDLE_ID.daemon" | grep -E "state =|pid =|last exit" || true
+tail -n 5 "$LOG"

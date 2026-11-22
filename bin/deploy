@@ -1,0 +1,55 @@
+#!/bin/bash
+# Deploy FamilyTimer to a child's Mac over SSH (SPEC 7.2).
+#
+#   bin/deploy NAME
+#
+# Reads ~/.config/familytimer/NAME.env (never in the repository):
+#   HOST=admin@192.168.1.10   the admin account on the child's Mac
+#   DRY_RUN=1                 optional: log instead of logging out / locking
+#   every other KEY=VALUE line becomes the daemon's config (CHILD_USER, TELEGRAM_*, ...).
+#
+# Builds a universal release, signs it ad hoc with the hardened runtime, copies it to
+# ~/.familytimer-stage on the target and runs the root updater. The first deploy needs the
+# admin password (run it yourself: it asks); later ones run without it.
+set -euo pipefail
+
+NAME=${1:?usage: bin/deploy NAME}
+ENV_FILE="$HOME/.config/familytimer/$NAME.env"
+[ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE" >&2; exit 1; }
+HOST=$(grep -E '^HOST=' "$ENV_FILE" | tail -1 | cut -d= -f2-)
+[ -n "$HOST" ] || { echo "HOST= missing in $ENV_FILE" >&2; exit 1; }
+DRY_RUN=$(grep -E '^DRY_RUN=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)
+
+ROOT=$(cd "$(dirname "$0")/.." && pwd)
+cd "$ROOT"
+
+echo "== building (universal release)"
+swift build -c release --arch arm64 --arch x86_64 >/dev/null
+PRODUCTS=$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)
+
+STAGE=$(mktemp -d)
+trap 'rm -rf "$STAGE"' EXIT
+chmod 700 "$STAGE"
+for bin in familytimerd FamilyTimerAgent; do
+    if [ -f "$PRODUCTS/$bin" ]; then
+        cp "$PRODUCTS/$bin" "$STAGE/$bin"
+        codesign --force --sign - --options runtime "$STAGE/$bin" 2>/dev/null
+    fi
+done
+cp deploy/update "$STAGE/update"
+grep -vE '^(HOST|DRY_RUN)=' "$ENV_FILE" > "$STAGE/config"
+chmod 600 "$STAGE/config"
+[ "$DRY_RUN" = 1 ] && touch "$STAGE/dry-run"
+
+echo "== copying to $HOST"
+ssh "$HOST" 'rm -rf ~/.familytimer-stage && mkdir -m 700 ~/.familytimer-stage'
+scp -q "$STAGE"/* "$HOST":.familytimer-stage/
+
+echo "== installing"
+if ssh "$HOST" 'sudo -n -l /usr/local/libexec/familytimer/update' >/dev/null 2>&1; then
+    ssh "$HOST" 'sudo -n /usr/local/libexec/familytimer/update ~/.familytimer-stage'
+else
+    echo "(first install: the admin password of $HOST is needed once)"
+    ssh -t "$HOST" 'sudo bash ~/.familytimer-stage/update ~/.familytimer-stage'
+fi
+ssh "$HOST" 'rm -rf ~/.familytimer-stage'
