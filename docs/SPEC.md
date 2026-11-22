@@ -197,8 +197,37 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 007 | S | `FamilyTimerAgent`: menu bar, dialogs, lock loop, socket client |
 | 008 | S/L | `install.sh`, `uninstall.sh`, plists, README |
 | 009 | S | End-to-end test on a throw-away standard user, in dry-run first |
+| 010 | S | `deploy.sh`: install on the family Macs over SSH (see 7.2) |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
+
+### 7.1 Phases
+
+| Phase | Tasks | Closed when |
+|---|---|---|
+| 1. Pure logic | 000-005, 0S1 | `FamilyTimerCore` complete; every transition of 4.2 has a test (including late Approve, `/lock`/`/unlock`, `/studio`, `/extra`, midnight); the lock-screen input case of 3.1 decided. |
+| 2. Dry run on this Mac | 006-008 | Installed with `DRY_RUN=1` for a throw-away standard user on the development Mac: time counts only with real input, Telegram commands and the Approve button work, Healthchecks receives pings, locks and logouts appear only in the log. |
+| 3. v1 | 009-010 | Full test without `DRY_RUN` on the throw-away user (re-lock on every unlock, logout when the agent is killed); then deployed to the family Macs and one week on the real child accounts without intervention. |
+
+Everything is tested on the development Mac first; the family Macs come last.
+
+### 7.2 Deploy over SSH
+
+The supervisor deploys to the family Macs over SSH with a key the parents provide; the
+parents say which Mac and which child account.
+
+- Target account: an **administrator** account of each Mac, never the child's. Remote Login
+  enabled for that account only. Every SSH key with admin access is as strong as the admin
+  password (2.), so it stays off the child accounts and off shared machines.
+- `deploy.sh HOST CHILD_USER`: builds a universal release binary (arm64 + x86_64) locally,
+  copies it with `scp`, runs `install.sh` with `sudo` on the target, then checks
+  `launchctl print system/com.2manyclicks.familytimer.daemon` and the log.
+- First on each Mac: run the 0S1 spike there (macOS version may differ) and record
+  `sw_vers` and the CPU.
+- Config per Mac: `CHILD_USER` and **one Telegram bot per Mac** (4.3). Bot tokens and
+  Healthchecks URLs never go in the repository; `deploy.sh` reads them from a local file
+  outside the repo, ignored by git.
+- `sudo` asks for the admin password once per deploy; no `NOPASSWD` rule is installed.
 
 ## 8. Open questions
 
