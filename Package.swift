@@ -6,9 +6,11 @@ let package = Package(
     platforms: [.macOS(.v13)],
     products: [
         .library(name: "FamilyTimerCore", targets: ["FamilyTimerCore"]),
+        .executable(name: "familytimerd", targets: ["familytimerd"]),
     ],
     targets: [
         .target(name: "FamilyTimerCore"),
+        .executableTarget(name: "familytimerd", dependencies: ["FamilyTimerCore"]),
         .testTarget(name: "FamilyTimerCoreTests", dependencies: ["FamilyTimerCore"]),
     ]
 )
