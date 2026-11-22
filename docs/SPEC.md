@@ -223,7 +223,8 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 007 | S | `FamilyTimerAgent`: menu bar, dialogs, lock loop, socket client |
 | 008 | S/L | `install.sh`, `uninstall.sh`, plists, README |
 | 009 | S | End-to-end test on a throw-away standard user, in dry-run first |
-| 010 | S | `deploy.sh`: install on the family Macs over SSH (see 7.2) |
+| 010 | S | Done. `bin/deploy` + `deploy/update`: install on the family Macs over SSH (7.2, `docs/DEPLOY.md`) |
+| 011 | L | Done. `AgentWatch`: when to restart a missing agent and when to tell the parents |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 
@@ -245,18 +246,18 @@ parents say which Mac and which child account.
 - Target account: an **administrator** account of each Mac, never the child's. Remote Login
   enabled for that account only. Every SSH key with admin access is as strong as the admin
   password (2.), so it stays off the child accounts and off shared machines.
-- `deploy.sh HOST CHILD_USER`: builds a universal release binary (arm64 + x86_64) locally,
-  copies it with `scp`, runs `install.sh` with `sudo` on the target, then checks
-  `launchctl print system/com.2manyclicks.familytimer.daemon` and the log.
+- `bin/deploy NAME` builds a release for the target's CPU, signs it, copies it over SSH and runs
+  the root updater `deploy/update`. How it works, the env file and troubleshooting:
+  `docs/DEPLOY.md`.
 - First on each Mac: run the 0S1 spike there (macOS version may differ) and record
   `sw_vers` and the CPU.
 - Config per Mac: `CHILD_USER` and **one Telegram bot per Mac** (4.3). Bot tokens and
-  Healthchecks URLs never go in the repository; `deploy.sh` reads them from a local file
-  outside the repo, ignored by git.
+  Healthchecks URLs never go in the repository; `bin/deploy` reads them from
+  `~/.config/familytimer/NAME.env`, outside the repo.
 - `sudo`: the first install asks for the admin password and adds
   `/etc/sudoers.d/familytimer`, which lets that admin run **only**
   `/usr/local/libexec/familytimer/update` (root-owned, not writable by anyone else) without a
-  password. `update` installs the files staged by `deploy.sh` in the admin's home; the child
+  password. `update` installs the files staged by `bin/deploy` in the admin's home; the child
   cannot write there. Later deploys need no password, so the supervisor deploys alone.
 - The Mac must be awake: a locked Mac goes to sleep and drops SSH. Turn on "Wake for network
   access" in the energy settings, or wake it before deploying.

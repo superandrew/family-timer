@@ -1,5 +1,10 @@
 # Rules for the local coding model (Aider, OpenCode, Qwen Code)
 
+> **Supervisor (Claude Code, Codex, any session that is not running a task card): these rules
+> are not for you.** Read `docs/SPEC.md` (design, plan in section 7), `docs/DEPLOY.md` (how
+> the family Macs are updated) and the llm-dev `SUPERVISOR.md` (how cards are written, run and
+> reviewed). You write cards and system code, review, commit when the user allows, deploy.
+
 These rules are for the local model that writes the code of a task. The supervisor reads
 `docs/SPEC.md` and the llm-dev `SUPERVISOR.md` instead.
 
