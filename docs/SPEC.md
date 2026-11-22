@@ -175,6 +175,9 @@ ignored, so an old minecraft-timer config still loads.
 `install.sh` and `uninstall.sh` (run with `sudo`) build in release mode, copy, set modes and
 load both jobs. The uninstaller also re-enables nothing and deletes nothing outside these
 paths. Bundle id prefix: `com.2manyclicks.familytimer` (launchd labels `com.2manyclicks.familytimer.daemon` and `.agent`).
+It is written in one place per language: `FamilyTimer.bundleID` in `FamilyTimerCore` and
+`BUNDLE_ID` at the top of `install.sh` / `uninstall.sh`; the plists are generated from a
+template, so a fork changes the id in those two places only.
 
 ## 7. Plan
 
