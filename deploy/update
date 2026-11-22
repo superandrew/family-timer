@@ -100,6 +100,9 @@ if [ -f "$LIBEXEC/FamilyTimerAgent" ]; then
 </dict></plist>
 EOF
     chown root:wheel "$AGENT_PLIST"; chmod 644 "$AGENT_PLIST"
+    # Stop every running copy (the daemon may have started one directly, outside launchd);
+    # launchd restarts its own in each session.
+    pkill -x FamilyTimerAgent 2>/dev/null || true
     # Restart the agent in the session at the console, if any.
     console_uid=$(stat -f %u /dev/console)
     if [ "$console_uid" != 0 ]; then
