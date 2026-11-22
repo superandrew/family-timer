@@ -44,18 +44,55 @@ enum System {
     /// Ends the GUI session of `uid` (the child is logged out). Returns the exit status.
     @discardableResult
     /// Starts the menu bar app in the session of `uid` (AgentWatch). If launchd still has the
-    /// job, restart it; if it was booted out, load it again from its plist.
-    static func restartAgent(uid: uid_t) -> Int32 {
+    /// job, restart it; if it was booted out, load it again from its plist. If launchd will
+    /// not run it (the user switched it off in Login Items, which needs no password), start
+    /// the binary directly in that session as that user: the switch only stops launchd.
+    static func restartAgent(uid: uid_t, user: String) -> String {
         let label = "\(FamilyTimer.bundleID).agent"
+        let service = "gui/\(uid)/\(label)"
         let plist = "/Library/LaunchAgents/\(label).plist"
-        if run("/bin/launchctl", ["print", "gui/\(uid)/\(label)"], quiet: true) == 0 {
-            return run("/bin/launchctl", ["kickstart", "-k", "gui/\(uid)/\(label)"])
+        var how: String
+        if run("/bin/launchctl", ["print", service], quiet: true) == 0 {
+            how = "kickstart exit \(run("/bin/launchctl", ["kickstart", "-k", service], quiet: true))"
+        } else {
+            how = "bootstrap exit \(run("/bin/launchctl", ["bootstrap", "gui/\(uid)", plist], quiet: true))"
         }
-        return run("/bin/launchctl", ["bootstrap", "gui/\(uid)", plist])
+        // Switched off in Login Items, launchd loads the job and kills it a second later.
+        Thread.sleep(forTimeInterval: 3)
+        if output("/bin/launchctl", ["print", service]).contains("state = running") {
+            return how
+        }
+        run("/bin/launchctl", ["bootout", service], quiet: true)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/launchctl")
+        process.arguments = ["asuser", "\(uid)", "/usr/bin/sudo", "-u", user,
+                             "/usr/local/libexec/familytimer/FamilyTimerAgent"]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()   // not waited for: it runs until the session ends
+            return how + ", not running (switched off in Login Items?): started directly"
+        } catch {
+            return "cannot start: \(error.localizedDescription)"
+        }
     }
 
     static func logout(uid: uid_t) -> Int32 {
         run("/bin/launchctl", ["bootout", "gui/\(uid)"])
+    }
+
+    /// Standard output of a command ("" if it cannot run).
+    static func output(_ path: String, _ arguments: [String]) -> String {
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return "" }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        return String(decoding: data, as: UTF8.self)
     }
 
     @discardableResult

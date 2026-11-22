@@ -89,8 +89,8 @@ actor Daemon {
         switch action {
         case .restart:
             guard let console else { return }
-            let status = System.restartAgent(uid: console.uid)
-            Log.info("agent missing for \(console.name): restart \(watch.restarts)/\(AgentWatch.maxRestarts), exit \(status)")
+            let result = System.restartAgent(uid: console.uid, user: console.name)
+            Log.info("agent missing for \(console.name): restart \(watch.restarts)/\(AgentWatch.maxRestarts), \(result)")
         case .notifyMissing:
             Log.info("agent still missing after \(AgentWatch.maxRestarts) restarts: telling the parents")
             _ = try? await telegram?.send(Replies.agentMissing(child: config.displayName, config.language))
