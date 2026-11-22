@@ -73,8 +73,9 @@ The daemon never trusts the agent for anything that matters.
 
 The agent locks the screen with `SACLockScreenImmediate` from the private
 `login.framework` (loaded with `dlopen`). It is private API: task 0S1 verifies it on the
-macOS version in use before anything depends on it. Verified on macOS 26.7.1 (25G241):
-the symbol resolves, the call returns 0 and locks the session. Fallback when it fails: the daemon logs
+macOS version in use before anything depends on it. Verified on macOS 26.6.2, 26.7.1 and 27.0.1:
+the symbol resolves, the call returns 0 and locks the session (also when run inside the
+child's session with `launchctl asuser`, as the agent will be). Fallback when it fails: the daemon logs
 the child out. While the phase is `locked`, the agent checks every 3 s and locks again
 whenever the session is unlocked (the Qustodio-style loop that works with teenagers).
 Parents can still log in with their own account from the login window.
@@ -216,7 +217,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 002 | L | `parseDuration` and `parseCommand` |
 | 003 | L | `DayLedger`: day key, budget, ticks, extra, studio, rollover |
 | 004 | L | Telegram `getUpdates` JSON decoding and parent check |
-| 0S1 | S | Done (macOS 26.7.1). Spike: verify `SACLockScreenImmediate`, `HIDIdleTime`, console user on the macOS in use |
+| 0S1 | S | Done (macOS 26.6.2, 26.7.1, 27.0.1). Spike: verify `SACLockScreenImmediate`, `HIDIdleTime`, console user on the macOS in use |
 | 005 | S | Done. `Policy`: the phase machine of 4.2 as a pure function `(state, event, now) -> (state, [action])` |
 | 006 | S | `familytimerd`: tick loop, persistence, Telegram client, Healthchecks, logout fallback |
 | 007 | S | `FamilyTimerAgent`: menu bar, dialogs, lock loop, socket client |
