@@ -8,7 +8,7 @@
 #   DRY_RUN=1                 optional: log instead of logging out / locking
 #   every other KEY=VALUE line becomes the daemon's config (CHILD_USER, TELEGRAM_*, ...).
 #
-# Builds a universal release, signs it ad hoc with the hardened runtime, copies it to
+# Builds a release for the target's CPU, signs it ad hoc with the hardened runtime, copies it to
 # ~/.familytimer-stage on the target and runs the root updater. The first deploy needs the
 # admin password (run it yourself: it asks); later ones run without it.
 set -euo pipefail
@@ -23,9 +23,10 @@ DRY_RUN=$(grep -E '^DRY_RUN=' "$ENV_FILE" | tail -1 | cut -d= -f2- || true)
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 cd "$ROOT"
 
-echo "== building (universal release)"
-swift build -c release --arch arm64 --arch x86_64 >/dev/null
-PRODUCTS=$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)
+ARCH=$(ssh "$HOST" uname -m)
+echo "== building (release, $ARCH)"
+swift build -c release --arch "$ARCH" >/dev/null
+PRODUCTS=$(swift build -c release --arch "$ARCH" --show-bin-path)
 
 STAGE=$(mktemp -d)
 trap 'rm -rf "$STAGE"' EXIT
