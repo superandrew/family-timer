@@ -100,4 +100,28 @@ final class RepliesTests: XCTestCase {
         XCTAssertEqual(Replies.agentBack(child: "arthur", .it), "✅ arthur: l'app nella barra è di nuovo collegata.")
         XCTAssertTrue(Replies.agentMissing(child: "arthur", .en).hasPrefix("⚠️ arthur: the menu bar app"))
     }
+
+    func testUsage() {
+        let entries = [UsageEntry(key: "app:com.mojang.minecraft", name: "Minecraft", seconds: 15000),
+                       UsageEntry(key: "site:youtube.com", name: "youtube.com", seconds: 4200),
+                       UsageEntry(key: "app:com.apple.Safari", name: "Safari", seconds: 4500)]
+        let categories: [String: UsageCategory] = ["app:com.mojang.minecraft": .games]
+
+        XCTAssertEqual(
+            Replies.usage(entries, categories: categories, child: "arthur", days: 7, limit: 10, .it),
+            "arthur, ultimi 7 giorni:\nApp:\n🎮 Minecraft 4h 10m\n❓ Safari 1h 15m\nSiti:\n❓ youtube.com 1h 10m"
+        )
+        XCTAssertEqual(
+            Replies.usage(entries, categories: categories, child: "arthur", days: 7, limit: 1, .en),
+            "arthur, last 7 days:\nApps:\n🎮 Minecraft 4h 10m\nSites:\n❓ youtube.com 1h 10m"
+        )
+        XCTAssertEqual(
+            Replies.usage([], categories: [:], child: "arthur", days: 1, limit: 10, .it),
+            "arthur, oggi:\nAncora nessun dato."
+        )
+        XCTAssertEqual(Replies.classifyPrompt(name: "Minecraft", seconds: 600, .it), "Che cos'è «Minecraft» (10m)?")
+        XCTAssertEqual(Replies.classified(name: "Minecraft", category: .games, by: "Andrea", .it), "«Minecraft»: 🎮 giochi (Andrea)")
+        XCTAssertEqual(Replies.categoryEmoji(nil), "❓")
+        XCTAssertEqual(Replies.categoryLabel(.study, .en), "📚 study")
+    }
 }

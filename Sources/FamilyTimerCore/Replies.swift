@@ -104,6 +104,8 @@ public enum Replies {
                 ? t(l, "Parent lock removed, but no time is left: still locked. Use /extra or /studio.",
                        "Blocco del genitore tolto, ma il tempo è finito: resta bloccato. Usa /extra o /studio.")
                 : t(l, "Unlocked. Remaining: \(remaining).", "Sbloccato. Rimasti: \(remaining).")
+        case .apps:
+            return ""
         }
     }
 
@@ -128,6 +130,8 @@ public enum Replies {
             /studio 2h - study time: the next 2 hours do not count
             /lock - lock until midnight or /unlock
             /unlock - remove /lock
+            /app - apps and sites of the last 7 days
+            /oggi - apps and sites of today
             Add a name to act on one child only: /extra 30 ann, /lock ann.
             """, """
             /status - tempo usato e rimasto oggi
@@ -135,6 +139,8 @@ public enum Replies {
             /studio 2h - studio: le prossime 2 ore non contano
             /lock - blocca fino a mezzanotte o /unlock
             /unlock - toglie /lock
+            /app - app e siti degli ultimi 7 giorni
+            /oggi - app e siti di oggi
             Aggiungi un nome per un solo figlio: /extra 30 ann, /lock ann.
             """)
     }
@@ -178,5 +184,64 @@ public enum Replies {
     public static func agentBack(child: String, _ l: Language) -> String {
         t(l, "✅ \(child): the menu bar app is connected again.",
              "✅ \(child): l'app nella barra è di nuovo collegata.")
+    }
+
+    /// Emoji of a category; nil (not classified yet) is "❓".
+    public static func categoryEmoji(_ c: UsageCategory?) -> String {
+        switch c {
+        case .games: return "🎮"
+        case .study: return "📚"
+        case .video: return "📺"
+        case .other: return "▫️"
+        case nil: return "❓"
+        }
+    }
+
+    /// Button text: emoji, a space, the name.
+    public static func categoryLabel(_ c: UsageCategory, _ l: Language) -> String {
+        switch c {
+        case .games: return t(l, "🎮 games", "🎮 giochi")
+        case .study: return t(l, "📚 study", "📚 studio")
+        case .video: return t(l, "📺 video", "📺 video")
+        case .other: return t(l, "▫️ other", "▫️ altro")
+        }
+    }
+
+    public static func usage(_ entries: [UsageEntry], categories: [String: UsageCategory],
+                             child: String, days: Int, limit: Int, _ l: Language) -> String {
+        let header = days == 1
+            ? t(l, "\(child), today:", "\(child), oggi:")
+            : t(l, "\(child), last \(days) days:", "\(child), ultimi \(days) giorni:")
+        var lines = [header]
+        if entries.isEmpty {
+            lines.append(t(l, "No data yet.", "Ancora nessun dato."))
+            return lines.joined(separator: "\n")
+        }
+        let apps = entries.filter { !UsageLog.isSite($0.key) }.prefix(limit)
+        let sites = entries.filter { UsageLog.isSite($0.key) }.prefix(limit)
+        if !apps.isEmpty {
+            lines.append(t(l, "Apps:", "App:"))
+            for e in apps {
+                lines.append("\(categoryEmoji(categories[e.key])) \(e.name) \(duration(e.seconds))")
+            }
+        }
+        if !sites.isEmpty {
+            lines.append(t(l, "Sites:", "Siti:"))
+            for e in sites {
+                lines.append("\(categoryEmoji(categories[e.key])) \(e.name) \(duration(e.seconds))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    public static func classifyPrompt(name: String, seconds: Int, _ l: Language) -> String {
+        t(l, "What is “\(name)” (\(duration(seconds)))?",
+             "Che cos'è «\(name)» (\(duration(seconds)))?")
+    }
+
+    public static func classified(name: String, category: UsageCategory, by: String,
+                                  _ l: Language) -> String {
+        t(l, "“\(name)”: \(categoryLabel(category, l)) (\(by))",
+             "«\(name)»: \(categoryLabel(category, l)) (\(by))")
     }
 }

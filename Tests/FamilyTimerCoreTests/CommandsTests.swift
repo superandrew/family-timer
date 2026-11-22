@@ -60,4 +60,14 @@ final class CommandsTests: XCTestCase {
         check("/foo art", .failure(.unknown("/foo")), "art")
         check("", .failure(.unknown("")), nil)
     }
+
+    func testAppsCommands() {
+        XCTAssertEqual(parseCommand("/app"), .success(.apps(days: 7)))
+        XCTAssertEqual(parseCommand("/APPS"), .success(.apps(days: 7)))
+        XCTAssertEqual(parseCommand("/oggi"), .success(.apps(days: 1)))
+        XCTAssertEqual(parseCommand("/today@bot"), .success(.apps(days: 1)))
+        let parsed = parseAddressedCommand("/app bea")
+        XCTAssertEqual(parsed.result, .success(.apps(days: 7)))
+        XCTAssertEqual(parsed.target, "bea")
+    }
 }

@@ -152,6 +152,11 @@ public enum Policy {
                     lock(&s, now: now, actions: &actions)
                 }
             case .locked:
+                if !s.ledger.lockedByParent
+                    && (s.ledger.remaining(budget: budget) > 0 || s.ledger.inStudio(at: now)) {
+                    reopen(&s, now: now, budget: budget, actions: &actions)
+                    break
+                }
                 let sent = s.lockSentAt ?? now
                 let confirmedRecently = s.lockConfirmedAt.map {
                     now.timeIntervalSince($0) < lockConfirmTimeout
@@ -195,7 +200,7 @@ public enum Policy {
 
         case let .command(command):
             switch command {
-            case .status, .help:
+            case .status, .help, .apps:
                 break
             case let .extra(seconds):
                 s.askDenied = nil

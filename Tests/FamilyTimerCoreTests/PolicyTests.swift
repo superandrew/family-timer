@@ -421,4 +421,23 @@ final class PolicyTests: XCTestCase {
         let data = try JSONEncoder().encode(original)
         XCTAssertEqual(try JSONDecoder().decode(PolicyState.self, from: data), original)
     }
+
+    func testLockedReopensWhenTimeComesBack() {
+        let (s1, a1) = reduce(state(used: 3600, phase: .locked), .tick(seconds: 15, active: true), at(10, 0))
+        XCTAssertEqual(s1.phase, .locked)
+        XCTAssertEqual(a1, [])
+
+        var raisedConfig = config
+        raisedConfig.weekdayLimit = 4000
+        let (s2, a2) = reduce(state(used: 3600, phase: .locked), .tick(seconds: 15, active: true), at(10, 0), config: raisedConfig)
+        XCTAssertEqual(s2.phase, .open)
+        XCTAssertEqual(a2, [.unlock])
+        XCTAssertEqual(s2.ledger.used, 3600)
+
+        var parentLockedState = state(used: 3600, phase: .locked)
+        parentLockedState.ledger.lockedByParent = true
+        let (s3, a3) = reduce(parentLockedState, .tick(seconds: 15, active: true), at(10, 0), config: raisedConfig)
+        XCTAssertEqual(s3.phase, .locked)
+        XCTAssertEqual(a3, [])
+    }
 }
