@@ -12,3 +12,6 @@ minertimer.config
 # Swift
 .build/
 .swiftpm/
+
+# Aider (llm-dev)
+.aider*
