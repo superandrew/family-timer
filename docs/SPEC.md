@@ -7,7 +7,8 @@ by Soferio Pty Limited. From minecraft-timer it keeps the idea, the Telegram app
 the LaunchDaemon install and the `KEY=VALUE` config format; the code is rewritten in Swift
 and extended from "Minecraft only" to "the whole Mac".
 
-Status: design. Nothing below is implemented yet unless a task in `docs/tasks/` says so.
+Status: v1 in daily use on two family Macs; the usage log (section 9) is in progress. Section 7
+says which task built what.
 
 ## 1. Goals (v1)
 
