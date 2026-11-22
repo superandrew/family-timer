@@ -103,8 +103,23 @@ EOF
     # Restart the agent in the session at the console, if any.
     console_uid=$(stat -f %u /dev/console)
     if [ "$console_uid" != 0 ]; then
-        launchctl bootout "gui/$console_uid/$BUNDLE_ID.agent" 2>/dev/null || true
-        launchctl bootstrap "gui/$console_uid" "$AGENT_PLIST" 2>/dev/null || true
+        agent="gui/$console_uid/$BUNDLE_ID.agent"
+        launchctl bootout "$agent" 2>/dev/null || true
+        # bootout returns before the job is gone: wait, or bootstrap fails with error 5.
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+            launchctl print "$agent" >/dev/null 2>&1 || break
+            sleep 1
+        done
+        ok=0
+        for _ in 1 2 3; do
+            if launchctl bootstrap "gui/$console_uid" "$AGENT_PLIST" 2>/dev/null; then ok=1; break; fi
+            sleep 2
+        done
+        if [ $ok = 1 ] || launchctl print "$agent" >/dev/null 2>&1; then
+            echo "agent running for uid $console_uid"
+        else
+            echo "!! could not start the agent for uid $console_uid (it starts at the next login)" >&2
+        fi
     fi
 fi
 
