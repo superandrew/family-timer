@@ -50,7 +50,12 @@ The daemon never trusts the agent for anything that matters.
 - **Counting** is done by the daemon alone: a second counts when the console user is the
   child and the system HID idle time is below `IDLE_THRESHOLD`. Both are readable by root
   (`SCDynamicStoreCopyConsoleUser`, IOKit `IOHIDSystem` → `HIDIdleTime`). A locked screen
-  produces no input, so it becomes idle and stops counting by itself.
+  left alone becomes idle and stops counting by itself. Input on the lock screen (mouse,
+  typing the password) does reset `HIDIdleTime` (task 0S1), so someone fiddling with a
+  locked Mac counts as active; the console user stays the child while the screen is locked.
+  Root cannot see the lock state directly: only the agent can (`CGSessionCopyCurrentDictionary`,
+  `CGSSessionScreenIsLocked`), and the agent is not trusted. In `locked` this does not matter
+  (no budget left to count); in `open` it can only count against the child.
 - The agent can only **ask** (a time request, which still needs a parent) and **report** that
   it is alive. A forged message from the child can at most send a request to the parents.
 - If the budget is over, the child is the console user and active, and the agent has not
@@ -62,7 +67,8 @@ The daemon never trusts the agent for anything that matters.
 
 The agent locks the screen with `SACLockScreenImmediate` from the private
 `login.framework` (loaded with `dlopen`). It is private API: task 0S1 verifies it on the
-macOS version in use before anything depends on it. Fallback when it fails: the daemon logs
+macOS version in use before anything depends on it. Verified on macOS 26.7.1 (25G241):
+the symbol resolves, the call returns 0 and locks the session. Fallback when it fails: the daemon logs
 the child out. While the phase is `locked`, the agent checks every 3 s and locks again
 whenever the session is unlocked (the Qustodio-style loop that works with teenagers).
 Parents can still log in with their own account from the login window.
@@ -182,7 +188,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 002 | L | `parseDuration` and `parseCommand` |
 | 003 | L | `DayLedger`: day key, budget, ticks, extra, studio, rollover |
 | 004 | L | Telegram `getUpdates` JSON decoding and parent check |
-| 0S1 | S | Spike: verify `SACLockScreenImmediate`, `HIDIdleTime`, console user on the macOS in use |
+| 0S1 | S | Done (macOS 26.7.1). Spike: verify `SACLockScreenImmediate`, `HIDIdleTime`, console user on the macOS in use |
 | 005 | S/L | `Policy`: the phase machine of 4.2 as a pure function `(state, event, now) -> (state, [action])` |
 | 006 | S | `familytimerd`: tick loop, persistence, Telegram client, Healthchecks, logout fallback |
 | 007 | S | `FamilyTimerAgent`: menu bar, dialogs, lock loop, socket client |
@@ -193,8 +199,6 @@ Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or l
 
 ## 8. Open questions
 
-- Does `SACLockScreenImmediate` still work on macOS 27? (task 0S1)
-- XCTest needs Xcode, not only the Command Line Tools: confirm Xcode is installed on the
-  build Mac.
+- Re-run the 0S1 spike (`tools/spike0s1.swift`) after every major macOS update (`SACLockScreenImmediate` is private).
 - Project name and bundle id before publishing.
 - Healthchecks while the Mac sleeps (4.4).
