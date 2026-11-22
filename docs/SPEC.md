@@ -167,14 +167,14 @@ ignored, so an old minecraft-timer config still loads.
 |---|---|
 | `/usr/local/libexec/familytimer/familytimerd` | root, 0755 |
 | `/usr/local/libexec/familytimer/FamilyTimerAgent` | root, 0755 |
-| `/Library/LaunchDaemons/io.github.familytimer.daemon.plist` | root:wheel, 0644 |
-| `/Library/LaunchAgents/io.github.familytimer.agent.plist` | root:wheel, 0644 |
+| `/Library/LaunchDaemons/com.2manyclicks.familytimer.daemon.plist` | root:wheel, 0644 |
+| `/Library/LaunchAgents/com.2manyclicks.familytimer.agent.plist` | root:wheel, 0644 |
 | `/Library/Application Support/FamilyTimer/config` and `state.json` | root, 0600 |
 | `/var/log/familytimer.log` | root |
 
 `install.sh` and `uninstall.sh` (run with `sudo`) build in release mode, copy, set modes and
 load both jobs. The uninstaller also re-enables nothing and deletes nothing outside these
-paths. The bundle id prefix is a placeholder until the project has a public name.
+paths. Bundle id prefix: `com.2manyclicks.familytimer` (launchd labels `com.2manyclicks.familytimer.daemon` and `.agent`).
 
 ## 7. Plan
 
@@ -200,5 +200,5 @@ Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or l
 ## 8. Open questions
 
 - Re-run the 0S1 spike (`tools/spike0s1.swift`) after every major macOS update (`SACLockScreenImmediate` is private).
-- Project name and bundle id before publishing.
+- Project name before publishing (the bundle id is fixed: `com.2manyclicks.familytimer`).
 - Healthchecks while the Mac sleeps (4.4).
