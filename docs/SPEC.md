@@ -54,12 +54,13 @@ The daemon never trusts the agent for anything that matters.
   typing the password) does reset `HIDIdleTime` (task 0S1), so someone fiddling with a
   locked Mac counts as active; the console user stays the child while the screen is locked.
   Root cannot see the lock state directly: only the agent can (`CGSessionCopyCurrentDictionary`,
-  `CGSSessionScreenIsLocked`), and the agent is not trusted. In `locked` this does not matter
-  (no budget left to count); in `open` it can only count against the child.
+  `CGSSessionScreenIsLocked`), and the agent is not trusted. Only the phase `open` counts
+  (4.2), so in `locked` this does not matter; in `open` it can only count against the child.
 - The agent can only **ask** (a time request, which still needs a parent) and **report** that
   it is alive. A forged message from the child can at most send a request to the parents.
-- If the budget is over, the child is the console user and active, and the agent has not
-  confirmed a lock within `GRACE_TIME` + 30 s, the daemon logs the child out
+- While the phase is `locked`, the agent reports `locked` at every 3 s check. If the child is
+  the console user and active, at least 30 s have passed since the lock (or the last logout),
+  and no `locked` report arrived in the last 30 s, the daemon logs the child out
   (`launchctl bootout gui/<uid>`). Killing the agent therefore only makes things worse.
 - The child cannot change the clock, unload the daemon or edit the config: all need admin.
 
@@ -105,6 +106,18 @@ The daemon ignores messages from a uid other than the configured child.
 
 `/lock` forces `locked` until midnight or `/unlock`, whatever the budget.
 A Telegram approval that arrives after the lock still grants the time and unlocks.
+
+Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
+
+- Only `open` counts. Grace is not charged to the extra time a parent then grants, and
+  a locked screen never counts.
+- The child can ask only in `grace`, once per grace. Without a Telegram token the request
+  is refused at once and the child stays in `grace`.
+- A request survives the lock, so a late Approve works; a late Deny changes nothing.
+  `/extra`, `/studio` and `/lock` cancel an open request.
+- `/lock` wins: `/extra`, `/studio` and a late Approve add time but do not unlock while it
+  holds. `/unlock` with no time left (and no `/studio`) leaves the child locked.
+- Midnight resets the day whatever the phase: it cancels an open request and unlocks.
 
 ### 4.3 Telegram
 
@@ -192,7 +205,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 003 | L | `DayLedger`: day key, budget, ticks, extra, studio, rollover |
 | 004 | L | Telegram `getUpdates` JSON decoding and parent check |
 | 0S1 | S | Done (macOS 26.7.1). Spike: verify `SACLockScreenImmediate`, `HIDIdleTime`, console user on the macOS in use |
-| 005 | S/L | `Policy`: the phase machine of 4.2 as a pure function `(state, event, now) -> (state, [action])` |
+| 005 | S | Done. `Policy`: the phase machine of 4.2 as a pure function `(state, event, now) -> (state, [action])` |
 | 006 | S | `familytimerd`: tick loop, persistence, Telegram client, Healthchecks, logout fallback |
 | 007 | S | `FamilyTimerAgent`: menu bar, dialogs, lock loop, socket client |
 | 008 | S/L | `install.sh`, `uninstall.sh`, plists, README |
