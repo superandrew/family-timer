@@ -43,11 +43,11 @@ final class RepliesTests: XCTestCase {
         let open = PolicyState(ledger: DayLedger(day: "2026-11-23", used: 3000, extra: 600))
         XCTAssertEqual(Replies.reply(to: .extra(seconds: 600), after: open, now: at(10, 0),
                                      config: config, calendar: calendar),
-                       "Added 10m. Remaining: 20m.")
+                       "arthur: Added 10m. Remaining: 20m.")
         let locked = PolicyState(ledger: DayLedger(day: "2026-11-23", used: 3600), phase: .locked)
         XCTAssertEqual(Replies.reply(to: .unlock, after: locked, now: at(10, 0),
                                      config: config, calendar: calendar),
-                       "Parent lock removed, but no time is left: still locked. Use /extra or /studio.")
+                       "arthur: Parent lock removed, but no time is left: still locked. Use /extra or /studio.")
     }
 
     func testErrorsAndRequest() {
@@ -57,6 +57,15 @@ final class RepliesTests: XCTestCase {
                        "⏰ arthur has used today's time and asks for 30m more.")
         XCTAssertEqual(Replies.decided("Q", approved: true, by: "Ann", .en), "Q\n✅ Approved by Ann.")
         XCTAssertEqual(Replies.decided("Q", approved: false, by: "", .en), "Q\n❌ Denied.")
+    }
+
+    func testDisplayName() {
+        var named = config
+        named.childNames = ["Art", "arthur"]
+        let state = PolicyState(ledger: DayLedger(day: "2026-11-23", used: 600))
+        XCTAssertEqual(Replies.reply(to: .lock, after: state, now: at(10, 0), config: named, calendar: calendar),
+                       "Art: Locked until midnight or /unlock.")
+        XCTAssertTrue(Replies.status(state, now: at(10, 0), config: named, calendar: calendar).hasPrefix("Art: used 10m"))
     }
 
     func testItalian() {
@@ -70,7 +79,7 @@ final class RepliesTests: XCTestCase {
                        + "Studio fino alle 11:30.\nBloccato da un genitore fino a mezzanotte o /unlock.")
         XCTAssertEqual(Replies.reply(to: .extra(seconds: 600), after: state, now: at(10, 0),
                                      config: it, calendar: calendar),
-                       "Aggiunti 10m. Rimasti: 45m. Resta bloccato da /lock.")
+                       "arthur: Aggiunti 10m. Rimasti: 45m. Resta bloccato da /lock.")
         XCTAssertEqual(Replies.error(.invalidDuration("xx"), .it),
                        "\"xx\" non è una durata tra 1 minuto e 12 ore (30, 45m, 2h, 1h30).")
         XCTAssertEqual(Replies.request(child: "arthur", seconds: 1800, .it),

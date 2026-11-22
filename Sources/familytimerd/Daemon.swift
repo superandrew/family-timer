@@ -1,15 +1,10 @@
 import Foundation
 import FamilyTimerCore
 
-/// Where the agent's messages go. Task 007 replaces the logging stub with the socket.
+/// Where the agent's messages go (the socket server, or a fake in tests).
 protocol AgentLink: Sendable {
     func send(_ action: PolicyAction) async
-}
-
-struct LoggingAgentLink: AgentLink {
-    func send(_ action: PolicyAction) async {
-        Log.info("agent <- \(action) (no agent yet)")
-    }
+    func broadcast(_ message: DaemonMessage)
 }
 
 struct Paths {
@@ -71,10 +66,44 @@ actor Daemon {
         let console = System.consoleUser()
         let idle = System.hidIdleSeconds() ?? .infinity
         let active = console?.name == config.childUser && idle < Double(config.idleThreshold)
+        if state.phase == .locked, let console, console.name == config.childUser,
+           System.isScreenLocked(uid: console.uid) {
+            await apply(.lockConfirmed, console: console)
+        }
         await apply(.tick(seconds: Self.tickSeconds, active: active), console: console)
+        sendState()
         if Date().timeIntervalSince(lastSummary) >= 300 {
             lastSummary = Date()
             Log.info("status: \(describe()) console \(console?.name ?? "-") idle \(Int(idle))s")
+        }
+    }
+
+    /// The periodic `state` message: the agent's countdown and phase.
+    func sendState() {
+        let now = Date()
+        agent.broadcast(DaemonMessage(
+            type: .state,
+            remaining: Policy.remaining(state, now: now, config: config, calendar: calendar),
+            phase: state.phase,
+            graceRemaining: state.graceUntil.map { max(0, Int($0.timeIntervalSince(now))) },
+            dryRun: dryRun,
+            language: config.language))
+    }
+
+    func agentMessage(_ message: AgentMessage) async {
+        switch message {
+        case .hello:
+            sendState()
+        case .heartbeat:
+            break
+        case .requestTime:
+            let id = String(UUID().uuidString.prefix(8)).lowercased()
+            Log.info("agent asks for more time (request \(id))")
+            await apply(.askForTime(requestID: id), console: System.consoleUser())
+            sendState()
+        case .locked:
+            // Informational only: the daemon reads the lock state itself in `tick`.
+            break
         }
     }
 
@@ -97,9 +126,10 @@ actor Daemon {
     private func perform(_ action: PolicyAction, console: (name: String, uid: uid_t)?) async {
         switch action {
         case .showExpiredDialog, .lock, .unlock, .requestResult:
+            Log.info("agent <- \(action)")
             await agent.send(action)
         case let .sendTimeRequest(requestID, seconds):
-            let text = Replies.request(child: config.childUser, seconds: seconds, config.language)
+            let text = Replies.request(child: config.displayName, seconds: seconds, config.language)
             do {
                 let id = try await telegram?.send(text, buttons: [
                     (Replies.approveButton(config.language), "approve:\(requestID)"),
@@ -152,10 +182,14 @@ actor Daemon {
                 Log.info("ignored \(text.prefix(20)) from \(fromID) in chat \(chatID)")
                 return
             }
+            let (parsed, target) = parseAddressedCommand(text)
+            // Another child's bot in the same group answers this one.
+            guard config.isAddressed(by: target) else { return }
             let reply: String
-            switch parseCommand(text) {
+            switch parsed {
             case let .success(command):
                 await apply(.command(command), console: System.consoleUser())
+                sendState()
                 reply = Replies.reply(to: command, after: state, now: Date(), config: config, calendar: calendar)
                 Log.info("command \(command) from \(fromID)")
             case let .failure(error):
@@ -179,12 +213,13 @@ actor Daemon {
             let approved = parts[0] == "approve"
             let actions = await apply(.answer(requestID: parts[1], approved: approved),
                                       console: System.consoleUser())
+            sendState()
             let applied = actions.contains(.requestResult(requestID: parts[1], approved: approved))
             try? await telegram.answerCallback(
                 id: id, text: Replies.callbackAnswer(applied: applied, approved: approved, config.language))
             if applied {
                 let text = requestMessages.removeValue(forKey: parts[1])?.text
-                    ?? Replies.request(child: config.childUser, seconds: config.extensionTime, config.language)
+                    ?? Replies.request(child: config.displayName, seconds: config.extensionTime, config.language)
                 try? await telegram.edit(messageID: messageID,
                                          text: Replies.decided(text, approved: approved, by: fromName, config.language))
                 Log.info("request \(parts[1]) \(approved ? "approved" : "denied") by \(fromID)")

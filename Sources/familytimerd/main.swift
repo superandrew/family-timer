@@ -6,7 +6,8 @@ import FamilyTimerCore
 // Environment (all optional, for tests and dry runs):
 //   FAMILYTIMER_CONFIG     config file (default /Library/Application Support/FamilyTimer/config)
 //   FAMILYTIMER_STATE_DIR  folder for state.json (default: the config's folder)
-//   DRY_RUN=1              log instead of logging the child out
+//   FAMILYTIMER_SOCKET     agent socket (default /var/run/familytimer.sock)
+//   DRY_RUN=1              log instead of logging the child out; the agent does not lock
 
 let env = ProcessInfo.processInfo.environment
 let configURL = URL(fileURLWithPath: env["FAMILYTIMER_CONFIG"]
@@ -26,7 +27,19 @@ do {
 Log.secrets = [config.telegramBotToken]
 try? FileManager.default.createDirectory(at: paths.stateDir, withIntermediateDirectories: true)
 
-let daemon = Daemon(config: config, paths: paths, dryRun: dryRun, agent: LoggingAgentLink())
+signal(SIGPIPE, SIG_IGN)
+guard let child = getpwnam(config.childUser) else {
+    Log.info("CHILD_USER \(config.childUser) is not a user of this Mac")
+    exit(78)
+}
+let server = AgentServer(path: env["FAMILYTIMER_SOCKET"] ?? "/var/run/familytimer.sock",
+                         childUID: child.pointee.pw_uid)
+let daemon = Daemon(config: config, paths: paths, dryRun: dryRun, agent: server)
+server.onMessage = { message in Task { await daemon.agentMessage(message) } }
+do { try server.start() } catch {
+    Log.info("cannot open the agent socket: \(error.localizedDescription)")
+    exit(71) // EX_OSERR
+}
 Log.info("familytimerd \(FamilyTimer.version) started\(dryRun ? " in DRY_RUN" : ""), child "
          + "\(config.childUser), telegram \(daemon.telegram == nil ? "off" : "on"), "
          + "healthchecks \(config.healthcheckURL.isEmpty ? "off" : "on"), language \(config.language.rawValue)")

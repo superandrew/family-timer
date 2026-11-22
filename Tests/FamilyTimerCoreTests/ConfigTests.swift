@@ -86,4 +86,15 @@ final class ConfigTests: XCTestCase {
             XCTAssertEqual(error as? ConfigError, .invalidValue(key: "LANGUAGE", value: "fr"))
         }
     }
+
+    func testChildNames() {
+        let config = try? Config.parse("CHILD_USER=arthur2\nCHILD_NAMES= Arthur , art ,")
+        XCTAssertEqual(config?.childNames, ["Arthur", "art"])
+        XCTAssertEqual(config?.displayName, "Arthur")
+        XCTAssertEqual(config?.isAddressed(by: nil), true)
+        XCTAssertEqual(config?.isAddressed(by: "ART"), true)
+        XCTAssertEqual(config?.isAddressed(by: "arthur2"), true)
+        XCTAssertEqual(config?.isAddressed(by: "bea"), false)
+        XCTAssertEqual(Config(childUser: "bob").displayName, "bob")
+    }
 }

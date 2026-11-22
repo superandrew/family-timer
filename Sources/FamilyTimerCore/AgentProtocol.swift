@@ -22,21 +22,24 @@ public enum DaemonMessageType: String, Codable, Equatable {
 
 public struct DaemonMessage: Codable, Equatable {
     public var type: DaemonMessageType
-    /// `state`: seconds left today, the phase, seconds left of grace, dry run.
+    /// `state`: seconds left today, the phase, seconds left of grace, dry run, language.
     public var remaining: Int?
     public var phase: Phase?
     public var graceRemaining: Int?
     public var dryRun: Bool?
+    public var language: Language?
     /// `request_result`.
     public var approved: Bool?
 
     public init(type: DaemonMessageType, remaining: Int? = nil, phase: Phase? = nil,
-                graceRemaining: Int? = nil, dryRun: Bool? = nil, approved: Bool? = nil) {
+                graceRemaining: Int? = nil, dryRun: Bool? = nil, language: Language? = nil,
+                approved: Bool? = nil) {
         self.type = type
         self.remaining = remaining
         self.phase = phase
         self.graceRemaining = graceRemaining
         self.dryRun = dryRun
+        self.language = language
         self.approved = approved
     }
 

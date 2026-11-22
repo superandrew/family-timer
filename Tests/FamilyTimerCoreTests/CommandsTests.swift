@@ -39,4 +39,25 @@ final class CommandsTests: XCTestCase {
         XCTAssertEqual(parseCommand("/foo bar"), .failure(.unknown("/foo")))
         XCTAssertEqual(parseCommand(""), .failure(.unknown("")))
     }
+
+    func testAddressedCommands() {
+        func check(_ text: String, _ result: Result<Command, CommandError>, _ target: String?,
+                   line: UInt = #line) {
+            let parsed = parseAddressedCommand(text)
+            XCTAssertEqual(parsed.result, result, line: line)
+            XCTAssertEqual(parsed.target, target, line: line)
+        }
+        check("/extra 5m art", .success(.extra(seconds: 5 * 60)), "art")
+        check("/extra art 5m", .success(.extra(seconds: 5 * 60)), "art")
+        check("/studio 2h bea", .success(.studio(seconds: 2 * 3600)), "bea")
+        check("/extra@family_bot 30 Art", .success(.extra(seconds: 30 * 60)), "Art")
+        check("/extra 30", .success(.extra(seconds: 30 * 60)), nil)
+        check("/extra art", .failure(.invalidDuration("art")), nil)
+        check("/extra xx art", .failure(.invalidDuration("xx")), "art")
+        check("/lock bea", .success(.lock), "bea")
+        check("/unlock", .success(.unlock), nil)
+        check("/status art", .success(.status), "art")
+        check("/foo art", .failure(.unknown("/foo")), "art")
+        check("", .failure(.unknown("")), nil)
+    }
 }

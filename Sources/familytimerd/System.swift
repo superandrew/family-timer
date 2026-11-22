@@ -24,6 +24,22 @@ enum System {
         return Double(ns) / 1_000_000_000
     }
 
+    /// True when the GUI session of `uid` shows the lock screen. Read from the IORegistry
+    /// (`IOConsoleUsers`, key `CGSSessionScreenIsLocked`, present only while locked): the
+    /// daemon checks the lock itself instead of trusting the agent (task 0S1, SPEC 3.1).
+    static func isScreenLocked(uid: uid_t) -> Bool {
+        let root = IORegistryGetRootEntry(kIOMainPortDefault)
+        guard root != 0 else { return false }
+        defer { IOObjectRelease(root) }
+        guard let users = IORegistryEntryCreateCFProperty(root, "IOConsoleUsers" as CFString,
+                                                          kCFAllocatorDefault, 0)?.takeRetainedValue()
+                as? [[String: Any]] else { return false }
+        return users.contains {
+            ($0["kCGSSessionUserIDKey"] as? NSNumber)?.uint32Value == uid
+                && ($0["CGSSessionScreenIsLocked"] as? Bool) == true
+        }
+    }
+
     /// Ends the GUI session of `uid` (the child is logged out). Returns the exit status.
     @discardableResult
     static func logout(uid: uid_t) -> Int32 {

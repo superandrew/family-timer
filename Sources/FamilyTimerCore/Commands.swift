@@ -71,6 +71,24 @@ public enum CommandError: Error, Equatable {
     case invalidDuration(String)
 }
 
+/// Like `parseCommand`, plus the child the command names, if any: `/extra 30 art`,
+/// `/extra art 30`, `/lock art`, `/status art`. The name is the word that is not the duration.
+public func parseAddressedCommand(_ text: String) -> (result: Result<Command, CommandError>, target: String?) {
+    let parts = text.split(whereSeparator: { $0.isWhitespace }).map { String($0) }
+    guard let first = parts.first else { return (parseCommand(text), nil) }
+    var word = first.lowercased()
+    if let at = word.firstIndex(of: "@") { word = String(word[..<at]) }
+    let rest = Array(parts.dropFirst())
+    if word == "/extra" || word == "/studio" {
+        guard rest.count >= 2 else { return (parseCommand(text), nil) }
+        if parseDuration(rest[0]) == nil && parseDuration(rest[1]) != nil {
+            return (parseCommand(first + " " + rest[1]), rest[0])
+        }
+        return (parseCommand(first + " " + rest[0]), rest[1])
+    }
+    return (parseCommand(first), rest.first)
+}
+
 public func parseCommand(_ text: String) -> Result<Command, CommandError> {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     let parts = trimmed.split(whereSeparator: { $0.isWhitespace }).map { String($0) }

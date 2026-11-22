@@ -43,8 +43,8 @@ public enum Replies {
         let extra = ledger.extra > 0 ? " + \(duration(ledger.extra)) extra" : ""
         let remaining = duration(ledger.remaining(budget: budget))
         var lines = [
-            t(l, "\(config.childUser): used \(duration(ledger.used)) of \(duration(budget))\(extra).",
-                 "\(config.childUser): usati \(duration(ledger.used)) su \(duration(budget))\(extra)."),
+            t(l, "\(config.displayName): used \(duration(ledger.used)) of \(duration(budget))\(extra).",
+                 "\(config.displayName): usati \(duration(ledger.used)) su \(duration(budget))\(extra)."),
             t(l, "Remaining: \(remaining). State: \(phaseName(state.phase, l)).",
                  "Rimasti: \(remaining). Stato: \(phaseName(state.phase, l))."),
         ]
@@ -59,8 +59,20 @@ public enum Replies {
         return lines.joined(separator: "\n")
     }
 
-    /// The answer to a parent command, given the state after the command.
+    /// The answer to a parent command, given the state after the command. Starts with the
+    /// child's name: with one bot per child in the same group, every answer says whose it is.
     public static func reply(to command: Command, after state: PolicyState, now: Date,
+                             config: Config, calendar: Calendar) -> String {
+        switch command {
+        case .status, .help:
+            return body(to: command, after: state, now: now, config: config, calendar: calendar)
+        default:
+            return config.displayName + ": "
+                + body(to: command, after: state, now: now, config: config, calendar: calendar)
+        }
+    }
+
+    private static func body(to command: Command, after state: PolicyState, now: Date,
                              config: Config, calendar: Calendar) -> String {
         let l = config.language
         let remaining = duration(Policy.remaining(state, now: now, config: config, calendar: calendar))
@@ -109,12 +121,14 @@ public enum Replies {
             /studio 2h - study time: the next 2 hours do not count
             /lock - lock until midnight or /unlock
             /unlock - remove /lock
+            Add a name to act on one child only: /extra 30 ann, /lock ann.
             """, """
             /status - tempo usato e rimasto oggi
             /extra 30 - aggiunge tempo oggi (30, 45m, 2h, 1h30)
             /studio 2h - studio: le prossime 2 ore non contano
             /lock - blocca fino a mezzanotte o /unlock
             /unlock - toglie /lock
+            Aggiungi un nome per un solo figlio: /extra 30 ann, /lock ann.
             """)
     }
 

@@ -53,14 +53,17 @@ The daemon never trusts the agent for anything that matters.
   left alone becomes idle and stops counting by itself. Input on the lock screen (mouse,
   typing the password) does reset `HIDIdleTime` (task 0S1), so someone fiddling with a
   locked Mac counts as active; the console user stays the child while the screen is locked.
-  Root cannot see the lock state directly: only the agent can (`CGSessionCopyCurrentDictionary`,
-  `CGSSessionScreenIsLocked`), and the agent is not trusted. Only the phase `open` counts
-  (4.2), so in `locked` this does not matter; in `open` it can only count against the child.
+  Only the phase `open` counts (4.2), so in `locked` this does not matter; in `open` it can
+  only count against the child.
+- **The lock state** is read by the daemon itself from the IORegistry: `IOConsoleUsers`, the
+  entry whose `kCGSSessionUserIDKey` is the child's uid has `CGSSessionScreenIsLocked = true`
+  only while the lock screen is up (verified in 0S1, readable without root). The agent's
+  `locked` message is informational: a script that fakes it changes nothing.
 - The agent can only **ask** (a time request, which still needs a parent) and **report** that
   it is alive. A forged message from the child can at most send a request to the parents.
-- While the phase is `locked`, the agent reports `locked` at every 3 s check. If the child is
+- While the phase is `locked`, the daemon checks the lock state at every tick. If the child is
   the console user and active, at least 30 s have passed since the lock (or the last logout),
-  and no `locked` report arrived in the last 30 s, the daemon logs the child out
+  and the screen was not seen locked in the last 30 s, the daemon logs the child out
   (`launchctl bootout gui/<uid>`). Killing the agent therefore only makes things worse.
 - The child cannot change the clock, unload the daemon or edit the config: all need admin.
 
@@ -121,8 +124,13 @@ Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
 
 ### 4.3 Telegram
 
-- One bot per Mac (two daemons polling the same bot steal each other's updates).
-  Both parents are in one group with the bot; `TELEGRAM_CHAT_ID` is that group.
+- One bot per Mac (two daemons polling the same bot steal each other's updates). With
+  several children, all the bots and both parents share **one group**;
+  `TELEGRAM_CHAT_ID` is that group.
+- A command may end with a child's name (`CHILD_NAMES`): `/extra 5m art`, `/studio 2h bea`,
+  `/lock bea`, `/status art`; `/extra art 5m` works too. Without a name a command is for
+  every child: `/status` gets one answer per child, `/lock` locks everyone. A bot ignores a
+  command that names another child. Every answer starts with the child's name.
 - The daemon long-polls `getUpdates` (timeout 25 s) all the time, not only during a request,
   and deletes any webhook at start (as minecraft-timer does).
 - Commands and button presses are accepted only from `TELEGRAM_CHAT_ID`, and, when
@@ -173,6 +181,7 @@ ignored, so an old minecraft-timer config still loads.
 | `PARENT_USER_IDS` | "" | comma-separated Telegram user ids allowed to command; empty = anyone in the chat |
 | `HEALTHCHECK_URL` | "" | empty disables the heartbeat |
 | `HEALTHCHECK_INTERVAL` | 300 | seconds |
+| `CHILD_NAMES` | CHILD_USER | comma-separated names the parents use in commands; the first is shown in messages |
 | `LANGUAGE` | en | language of every text the child and the parents see: `en` or `it` |
 
 ## 6. Files
@@ -241,7 +250,13 @@ parents say which Mac and which child account.
 - Config per Mac: `CHILD_USER` and **one Telegram bot per Mac** (4.3). Bot tokens and
   Healthchecks URLs never go in the repository; `deploy.sh` reads them from a local file
   outside the repo, ignored by git.
-- `sudo` asks for the admin password once per deploy; no `NOPASSWD` rule is installed.
+- `sudo`: the first install asks for the admin password and adds
+  `/etc/sudoers.d/familytimer`, which lets that admin run **only**
+  `/usr/local/libexec/familytimer/update` (root-owned, not writable by anyone else) without a
+  password. `update` installs the files staged by `deploy.sh` in the admin's home; the child
+  cannot write there. Later deploys need no password, so the supervisor deploys alone.
+- The Mac must be awake: a locked Mac goes to sleep and drops SSH. Turn on "Wake for network
+  access" in the energy settings, or wake it before deploying.
 - Per-Mac details (host, admin, child account, CPU, macOS) live in the local file next to the
   secrets, never in the repository.
 - A Mac may still run the old minertimer (`/Library/LaunchDaemons/com.soferio.minertimer_daily_timer.plist`):

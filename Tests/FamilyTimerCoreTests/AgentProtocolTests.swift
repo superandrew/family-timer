@@ -30,3 +30,20 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertEqual(buffer.append(Data("ghijkl\nmn\n".utf8)), [Data("mn".utf8)])
     }
 }
+
+final class AgentTextsTests: XCTestCase {
+    func testMenuTitle() {
+        XCTAssertEqual(AgentTexts.menuTitle(remaining: 2700, phase: .open, graceRemaining: nil, .it), "⏱ 45m")
+        XCTAssertEqual(AgentTexts.menuTitle(remaining: 61, phase: .open, graceRemaining: nil, .en), "⏱ 2m")
+        XCTAssertEqual(AgentTexts.menuTitle(remaining: 0, phase: .grace, graceRemaining: 240, .it),
+                       "⏱ tempo finito (4m)")
+        XCTAssertEqual(AgentTexts.menuTitle(remaining: 0, phase: .locked, graceRemaining: nil, .en), "⏱ locked")
+    }
+
+    func testDialogs() {
+        XCTAssertEqual(AgentTexts.warning(minutes: 5, .it), "Mancano 5 minuti per oggi.")
+        XCTAssertEqual(AgentTexts.warning(minutes: 1, .en), "1 minute left today. Save your work.")
+        XCTAssertEqual(AgentTexts.expired(graceRemaining: 300, .it),
+                       "Il tempo di oggi è finito. Lo schermo si blocca tra 5m.\nPuoi chiedere altro tempo ai genitori.")
+    }
+}

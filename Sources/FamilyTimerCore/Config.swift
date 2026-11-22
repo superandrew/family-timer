@@ -26,6 +26,19 @@ public struct Config: Equatable {
     public var healthcheckURL: String
     public var healthcheckInterval: Int
     public var language: Language
+    /// Names the parents use for the child in commands (`/extra 30 art`); the first one is
+    /// shown in messages. Empty: the macOS user name.
+    public var childNames: [String]
+
+    /// The name shown in messages.
+    public var displayName: String { childNames.first ?? childUser }
+
+    /// True when a command names this child, or names nobody (it is for every child).
+    public func isAddressed(by target: String?) -> Bool {
+        guard let target else { return true }
+        let names = childNames.isEmpty ? [childUser] : childNames + [childUser]
+        return names.contains { $0.caseInsensitiveCompare(target) == .orderedSame }
+    }
 
     public init(
         childUser: String,
@@ -40,7 +53,8 @@ public struct Config: Equatable {
         parentUserIDs: [Int64] = [],
         healthcheckURL: String = "",
         healthcheckInterval: Int = 300,
-        language: Language = .en
+        language: Language = .en,
+        childNames: [String] = []
     ) {
         self.childUser = childUser
         self.weekdayLimit = weekdayLimit
@@ -55,6 +69,7 @@ public struct Config: Equatable {
         self.healthcheckURL = healthcheckURL
         self.healthcheckInterval = healthcheckInterval
         self.language = language
+        self.childNames = childNames
     }
 
     public static func parse(_ text: String) throws -> Config {
@@ -71,6 +86,7 @@ public struct Config: Equatable {
         var healthcheckURL = ""
         var healthcheckInterval = 300
         var language = Language.en
+        var childNames: [String] = []
 
         let lines = text.components(separatedBy: "\n")
         for rawLine in lines {
@@ -155,6 +171,10 @@ public struct Config: Equatable {
                     throw ConfigError.invalidValue(key: key, value: value)
                 }
                 language = v
+            case "CHILD_NAMES":
+                childNames = value.components(separatedBy: ",")
+                    .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t")) }
+                    .filter { !$0.isEmpty }
             default:
                 break
             }
@@ -177,7 +197,8 @@ public struct Config: Equatable {
             parentUserIDs: parentUserIDs,
             healthcheckURL: healthcheckURL,
             healthcheckInterval: healthcheckInterval,
-            language: language
+            language: language,
+            childNames: childNames
         )
     }
 }
