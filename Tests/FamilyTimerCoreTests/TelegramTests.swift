@@ -66,6 +66,17 @@ final class TelegramTests: XCTestCase {
         XCTAssertEqual(nextOffset(after: updates), 3)
     }
 
+    func testCallbackCarriesMessageAndName() {
+        let json = """
+        {"ok": true, "result": [{"update_id": 3, "callback_query": {"id": "cb2",
+          "from": {"id": 11, "first_name": "Ann"},
+          "message": {"message_id": 42, "chat": {"id": -100}}, "data": "deny:r2"}}]}
+        """
+        let updates = try! decodeUpdates(Data(json.utf8))
+        XCTAssertEqual(updates, [TelegramUpdate(updateID: 3, event: .callback(
+            id: "cb2", chatID: -100, fromID: 11, data: "deny:r2", messageID: 42, fromName: "Ann"))])
+    }
+
     func testIsFromParent() {
         let config = Config(childUser: "a", telegramChatID: "-100", parentUserIDs: [11])
         XCTAssertTrue(isFromParent(chatID: -100, fromID: 11, config: config))

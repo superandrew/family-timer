@@ -6,7 +6,9 @@ public enum TelegramError: Error, Equatable {
 
 public enum TelegramEvent: Equatable {
     case message(chatID: Int64, fromID: Int64, text: String)
-    case callback(id: String, chatID: Int64, fromID: Int64, data: String)
+    /// `messageID` is the message with the buttons (to edit it), `fromName` who pressed.
+    case callback(id: String, chatID: Int64, fromID: Int64, data: String,
+                  messageID: Int64 = 0, fromName: String = "")
     case other
 }
 
@@ -28,6 +30,7 @@ private struct RawUpdate: Decodable {
 }
 
 private struct RawMessage: Decodable {
+    var message_id: Int64?
     var from: RawUser?
     var chat: RawChat?
     var text: String?
@@ -42,6 +45,7 @@ private struct RawCallbackQuery: Decodable {
 
 private struct RawUser: Decodable {
     var id: Int64?
+    var first_name: String?
 }
 
 private struct RawChat: Decodable {
@@ -67,7 +71,9 @@ public func decodeUpdates(_ data: Data) throws -> [TelegramUpdate] {
                   let fromID = cb.from?.id,
                   let chatID = cb.message?.chat?.id,
                   let data = cb.data {
-            event = .callback(id: id, chatID: chatID, fromID: fromID, data: data)
+            event = .callback(id: id, chatID: chatID, fromID: fromID, data: data,
+                              messageID: cb.message?.message_id ?? 0,
+                              fromName: cb.from?.first_name ?? "")
         }
         return TelegramUpdate(updateID: raw.update_id, event: event)
     }
