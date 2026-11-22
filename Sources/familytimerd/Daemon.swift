@@ -99,10 +99,11 @@ actor Daemon {
         case .showExpiredDialog, .lock, .unlock, .requestResult:
             await agent.send(action)
         case let .sendTimeRequest(requestID, seconds):
-            let text = Replies.request(child: config.childUser, seconds: seconds)
+            let text = Replies.request(child: config.childUser, seconds: seconds, config.language)
             do {
                 let id = try await telegram?.send(text, buttons: [
-                    ("✅ Approve", "approve:\(requestID)"), ("❌ Deny", "deny:\(requestID)"),
+                    (Replies.approveButton(config.language), "approve:\(requestID)"),
+                    (Replies.denyButton(config.language), "deny:\(requestID)"),
                 ]) ?? 0
                 requestMessages[requestID] = (id, text)
                 Log.info("request \(requestID) sent to Telegram")
@@ -111,7 +112,7 @@ actor Daemon {
             }
         case let .cancelRequest(requestID):
             if let message = requestMessages.removeValue(forKey: requestID) {
-                try? await telegram?.edit(messageID: message.id, text: message.text + "\n(Superseded.)")
+                try? await telegram?.edit(messageID: message.id, text: Replies.superseded(message.text, config.language))
             }
         case .logout:
             guard let console, console.name == config.childUser else { return }
@@ -158,7 +159,7 @@ actor Daemon {
                 reply = Replies.reply(to: command, after: state, now: Date(), config: config, calendar: calendar)
                 Log.info("command \(command) from \(fromID)")
             case let .failure(error):
-                reply = Replies.error(error)
+                reply = Replies.error(error, config.language)
                 Log.info("bad command \(error) from \(fromID)")
             }
             do { try await telegram.send(reply) } catch {
@@ -167,7 +168,7 @@ actor Daemon {
 
         case let .callback(id, chatID, fromID, data, messageID, fromName):
             guard isFromParent(chatID: chatID, fromID: fromID, config: config) else {
-                try? await telegram.answerCallback(id: id, text: "Only parents can answer.")
+                try? await telegram.answerCallback(id: id, text: Replies.parentsOnly(config.language))
                 return
             }
             let parts = data.split(separator: ":", maxSplits: 1).map(String.init)
@@ -179,13 +180,13 @@ actor Daemon {
             let actions = await apply(.answer(requestID: parts[1], approved: approved),
                                       console: System.consoleUser())
             let applied = actions.contains(.requestResult(requestID: parts[1], approved: approved))
-            try? await telegram.answerCallback(id: id, text: applied ? (approved ? "Approved" : "Denied")
-                                                                     : "Already decided or expired.")
+            try? await telegram.answerCallback(
+                id: id, text: Replies.callbackAnswer(applied: applied, approved: approved, config.language))
             if applied {
                 let text = requestMessages.removeValue(forKey: parts[1])?.text
-                    ?? Replies.request(child: config.childUser, seconds: config.extensionTime)
+                    ?? Replies.request(child: config.childUser, seconds: config.extensionTime, config.language)
                 try? await telegram.edit(messageID: messageID,
-                                         text: Replies.decided(text, approved: approved, by: fromName))
+                                         text: Replies.decided(text, approved: approved, by: fromName, config.language))
                 Log.info("request \(parts[1]) \(approved ? "approved" : "denied") by \(fromID)")
             }
 

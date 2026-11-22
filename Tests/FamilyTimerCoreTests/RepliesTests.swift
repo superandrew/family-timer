@@ -51,11 +51,31 @@ final class RepliesTests: XCTestCase {
     }
 
     func testErrorsAndRequest() {
-        XCTAssertEqual(Replies.error(.missingDuration("/extra")),
+        XCTAssertEqual(Replies.error(.missingDuration("/extra"), .en),
                        "/extra needs a duration, for example /extra 30 or /extra 1h30.")
-        XCTAssertEqual(Replies.request(child: "arthur", seconds: 1800),
+        XCTAssertEqual(Replies.request(child: "arthur", seconds: 1800, .en),
                        "⏰ arthur has used today's time and asks for 30m more.")
-        XCTAssertEqual(Replies.decided("Q", approved: true, by: "Ann"), "Q\n✅ Approved by Ann.")
-        XCTAssertEqual(Replies.decided("Q", approved: false, by: ""), "Q\n❌ Denied.")
+        XCTAssertEqual(Replies.decided("Q", approved: true, by: "Ann", .en), "Q\n✅ Approved by Ann.")
+        XCTAssertEqual(Replies.decided("Q", approved: false, by: "", .en), "Q\n❌ Denied.")
+    }
+
+    func testItalian() {
+        var it = config
+        it.language = .it
+        let state = PolicyState(ledger: DayLedger(day: "2026-11-23", used: 2700, extra: 1800,
+                                                  studioUntil: at(11, 30), lockedByParent: true),
+                                phase: .locked)
+        XCTAssertEqual(Replies.status(state, now: at(10, 0), config: it, calendar: calendar),
+                       "arthur: usati 45m su 1h 00m + 30m extra.\nRimasti: 45m. Stato: bloccato.\n"
+                       + "Studio fino alle 11:30.\nBloccato da un genitore fino a mezzanotte o /unlock.")
+        XCTAssertEqual(Replies.reply(to: .extra(seconds: 600), after: state, now: at(10, 0),
+                                     config: it, calendar: calendar),
+                       "Aggiunti 10m. Rimasti: 45m. Resta bloccato da /lock.")
+        XCTAssertEqual(Replies.error(.invalidDuration("xx"), .it),
+                       "\"xx\" non è una durata tra 1 minuto e 12 ore (30, 45m, 2h, 1h30).")
+        XCTAssertEqual(Replies.request(child: "arthur", seconds: 1800, .it),
+                       "⏰ arthur ha finito il tempo di oggi e chiede altri 30m.")
+        XCTAssertEqual(Replies.decided("Q", approved: false, by: "Ann", .it), "Q\n❌ Negato da Ann.")
+        XCTAssertTrue(Replies.help(.it).hasPrefix("/status - tempo usato e rimasto oggi\n"))
     }
 }

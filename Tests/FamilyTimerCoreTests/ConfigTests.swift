@@ -77,4 +77,13 @@ final class ConfigTests: XCTestCase {
         let config = try? Config.parse("CHILD_USER=a\nthis line has no equal sign")
         XCTAssertEqual(config, Config(childUser: "a"))
     }
+
+    func testLanguage() {
+        XCTAssertEqual(try? Config.parse("CHILD_USER=a\nLANGUAGE=it").language, .it)
+        XCTAssertEqual(try? Config.parse("CHILD_USER=a\nLANGUAGE=EN").language, .en)
+        XCTAssertEqual(try? Config.parse("CHILD_USER=a").language, .en)
+        XCTAssertThrowsError(try Config.parse("CHILD_USER=a\nLANGUAGE=fr")) { error in
+            XCTAssertEqual(error as? ConfigError, .invalidValue(key: "LANGUAGE", value: "fr"))
+        }
+    }
 }

@@ -29,7 +29,7 @@ try? FileManager.default.createDirectory(at: paths.stateDir, withIntermediateDir
 let daemon = Daemon(config: config, paths: paths, dryRun: dryRun, agent: LoggingAgentLink())
 Log.info("familytimerd \(FamilyTimer.version) started\(dryRun ? " in DRY_RUN" : ""), child "
          + "\(config.childUser), telegram \(daemon.telegram == nil ? "off" : "on"), "
-         + "healthchecks \(config.healthcheckURL.isEmpty ? "off" : "on")")
+         + "healthchecks \(config.healthcheckURL.isEmpty ? "off" : "on"), language \(config.language.rawValue)")
 Log.info("state: \(await daemon.describe())")
 
 if let telegram = daemon.telegram {

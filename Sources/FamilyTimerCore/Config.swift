@@ -3,6 +3,13 @@ import Foundation
 public enum ConfigError: Error, Equatable {
     case missing(String)
     case invalidNumber(key: String, value: String)
+    case invalidValue(key: String, value: String)
+}
+
+/// Language of every text the child and the parents see.
+public enum Language: String, Codable, Equatable {
+    case en
+    case it
 }
 
 public struct Config: Equatable {
@@ -18,6 +25,7 @@ public struct Config: Equatable {
     public var parentUserIDs: [Int64]
     public var healthcheckURL: String
     public var healthcheckInterval: Int
+    public var language: Language
 
     public init(
         childUser: String,
@@ -31,7 +39,8 @@ public struct Config: Equatable {
         telegramChatID: String = "",
         parentUserIDs: [Int64] = [],
         healthcheckURL: String = "",
-        healthcheckInterval: Int = 300
+        healthcheckInterval: Int = 300,
+        language: Language = .en
     ) {
         self.childUser = childUser
         self.weekdayLimit = weekdayLimit
@@ -45,6 +54,7 @@ public struct Config: Equatable {
         self.parentUserIDs = parentUserIDs
         self.healthcheckURL = healthcheckURL
         self.healthcheckInterval = healthcheckInterval
+        self.language = language
     }
 
     public static func parse(_ text: String) throws -> Config {
@@ -60,6 +70,7 @@ public struct Config: Equatable {
         var parentUserIDs: [Int64] = []
         var healthcheckURL = ""
         var healthcheckInterval = 300
+        var language = Language.en
 
         let lines = text.components(separatedBy: "\n")
         for rawLine in lines {
@@ -139,6 +150,11 @@ public struct Config: Equatable {
                     throw ConfigError.invalidNumber(key: key, value: value)
                 }
                 healthcheckInterval = v
+            case "LANGUAGE":
+                guard let v = Language(rawValue: value.lowercased()) else {
+                    throw ConfigError.invalidValue(key: key, value: value)
+                }
+                language = v
             default:
                 break
             }
@@ -160,7 +176,8 @@ public struct Config: Equatable {
             telegramChatID: telegramChatID,
             parentUserIDs: parentUserIDs,
             healthcheckURL: healthcheckURL,
-            healthcheckInterval: healthcheckInterval
+            healthcheckInterval: healthcheckInterval,
+            language: language
         )
     }
 }

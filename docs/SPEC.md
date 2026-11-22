@@ -173,6 +173,7 @@ ignored, so an old minecraft-timer config still loads.
 | `PARENT_USER_IDS` | "" | comma-separated Telegram user ids allowed to command; empty = anyone in the chat |
 | `HEALTHCHECK_URL` | "" | empty disables the heartbeat |
 | `HEALTHCHECK_INTERVAL` | 300 | seconds |
+| `LANGUAGE` | en | language of every text the child and the parents see: `en` or `it` |
 
 ## 6. Files
 
