@@ -30,6 +30,8 @@ Status: design. Nothing below is implemented yet unless a task in `docs/tasks/` 
   not on apps. `/studio` covers homework.
 - Web filtering, activity reports, screenshots, location.
 - iOS or Android. Windows and Linux.
+- More than one child per Mac. Each child has a Mac; another child's account on the same Mac
+  is not controlled (disable it, or give it no login, if that matters).
 - Protection against someone who knows an administrator password. The child account must be
   a **standard** user; with an admin password every local control can be removed.
 
