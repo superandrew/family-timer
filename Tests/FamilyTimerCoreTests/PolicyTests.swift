@@ -45,6 +45,12 @@ final class PolicyTests: XCTestCase {
         return s
     }
 
+    /// Locked at 10:05 at the end of grace, no request.
+    func lockedNoRequest() -> PolicyState {
+        let (s, _) = reduce(inGrace(), .tick(seconds: 15, active: true), at(10, 5))
+        return s
+    }
+
     // MARK: open
 
     func testActiveTickCounts() {
@@ -279,6 +285,86 @@ final class PolicyTests: XCTestCase {
         XCTAssertEqual(s.phase, .locked)
         XCTAssertFalse(s.ledger.lockedByParent)
         XCTAssertEqual(actions, [])
+    }
+
+    // MARK: asking while locked
+
+    func testAskWhileLockedSendsRequestAndStaysLocked() {
+        let (s, actions) = reduce(lockedNoRequest(), .askForTime(requestID: "r2"), at(10, 20))
+        XCTAssertEqual(s.phase, .locked)
+        XCTAssertEqual(s.request, PendingRequest(id: "r2", seconds: 1800, deadline: at(10, 30)))
+        XCTAssertEqual(actions, [.sendTimeRequest(requestID: "r2", seconds: 1800)])
+        XCTAssertEqual(Policy.askState(s, config: config), .waiting)
+    }
+
+    func testApproveWhileLockedUnlocks() {
+        let (s1, _) = reduce(lockedNoRequest(), .askForTime(requestID: "r2"), at(10, 20))
+        let (s, actions) = reduce(s1, .answer(requestID: "r2", approved: true), at(10, 21))
+        XCTAssertEqual(s.phase, .open)
+        XCTAssertEqual(s.ledger.extra, 1800)
+        XCTAssertEqual(actions, [.requestResult(requestID: "r2", approved: true), .unlock])
+    }
+
+    func testDenyBlocksFurtherAsks() {
+        let (s1, _) = reduce(lockedNoRequest(), .askForTime(requestID: "r2"), at(10, 20))
+        let (s, actions) = reduce(s1, .answer(requestID: "r2", approved: false), at(10, 21))
+        XCTAssertEqual(s.phase, .locked)
+        XCTAssertEqual(s.askDenied, true)
+        XCTAssertEqual(actions, [.requestResult(requestID: "r2", approved: false)])
+        XCTAssertEqual(Policy.askState(s, config: config), .denied)
+
+        let (s2, actions2) = reduce(s, .askForTime(requestID: "r3"), at(10, 30))
+        XCTAssertEqual(s2, s)
+        XCTAssertEqual(actions2, [])
+    }
+
+    func testDenyInPendingAlsoBlocks() {
+        let (s, _) = reduce(inPending(), .answer(requestID: "r1", approved: false), at(10, 2))
+        XCTAssertEqual(s.askDenied, true)
+        XCTAssertEqual(Policy.askState(s, config: config), .denied)
+    }
+
+    func testParentTimeClearsDenial() {
+        let (s1, _) = reduce(lockedNoRequest(), .askForTime(requestID: "r2"), at(10, 20))
+        let (denied, _) = reduce(s1, .answer(requestID: "r2", approved: false), at(10, 21))
+
+        let (sExtra, _) = reduce(denied, .command(.extra(seconds: 600)), at(10, 40))
+        XCTAssertNil(sExtra.askDenied)
+
+        let (sStudio, _) = reduce(denied, .command(.studio(seconds: 600)), at(10, 40))
+        XCTAssertNil(sStudio.askDenied)
+
+        let (sUnlock, _) = reduce(denied, .command(.unlock), at(10, 40))
+        XCTAssertNil(sUnlock.askDenied)
+        XCTAssertEqual(sUnlock.phase, .locked)
+        XCTAssertEqual(Policy.askState(sUnlock, config: config), .available)
+    }
+
+    func testNoAskDuringParentLock() {
+        let (s1, _) = reduce(lockedNoRequest(), .command(.lock), at(10, 10))
+        let (s, actions) = reduce(s1, .askForTime(requestID: "r4"), at(10, 11))
+        XCTAssertNil(s.request)
+        XCTAssertEqual(actions, [])
+        XCTAssertEqual(Policy.askState(s, config: config), .unavailable)
+    }
+
+    func testAskState() {
+        XCTAssertEqual(Policy.askState(state(), config: config), .unavailable)
+        XCTAssertEqual(Policy.askState(inGrace(), config: config), .available)
+        XCTAssertEqual(Policy.askState(inPending(), config: config), .waiting)
+        XCTAssertEqual(Policy.askState(lockedNoRequest(), config: config), .available)
+
+        var noTelegram = config
+        noTelegram.telegramBotToken = ""
+        XCTAssertEqual(Policy.askState(lockedNoRequest(), config: noTelegram), .unavailable)
+    }
+
+    func testStateWithoutAskDeniedDecodes() throws {
+        let state = lockedNoRequest()
+        let data = try JSONEncoder().encode(state)
+        let json = String(decoding: data, as: UTF8.self)
+        XCTAssertFalse(json.contains("\"askDenied\""))
+        XCTAssertEqual(try JSONDecoder().decode(PolicyState.self, from: data), state)
     }
 
     // MARK: midnight

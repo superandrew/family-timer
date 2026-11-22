@@ -47,4 +47,24 @@ public enum AgentTexts {
             ? t(l, "A parent said yes: more time added.", "Un genitore ha detto sì: tempo aggiunto.")
             : t(l, "A parent said no.", "Un genitore ha detto no.")
     }
+
+    public static func lockedAsk(_ l: Language) -> String {
+        t(l, "Today's time is over. You can ask a parent for more time.",
+          "Il tempo di oggi è finito. Puoi chiedere altro tempo ai genitori.")
+    }
+
+    public static func lockedWaiting(_ l: Language) -> String {
+        t(l, "Request sent. Waiting for a parent's answer.",
+          "Richiesta inviata. Aspetta la risposta dei genitori.")
+    }
+
+    public static func lockedDenied(_ l: Language) -> String {
+        t(l, "A parent said no: today's time is over.",
+          "Un genitore ha detto no: per oggi il tempo è finito.")
+    }
+
+    public static func lockedOver(_ l: Language) -> String {
+        t(l, "Today's time is over.",
+          "Il tempo di oggi è finito.")
+    }
 }

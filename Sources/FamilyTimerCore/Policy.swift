@@ -32,16 +32,20 @@ public struct PolicyState: Codable, Equatable {
     public var lockSentAt: Date?
     /// The last time the agent confirmed that the screen is locked.
     public var lockConfirmedAt: Date?
+    /// A parent denied a request today: no new request until midnight or a parent's
+    /// /extra, /studio or /unlock. Optional so that state files without it still decode.
+    public var askDenied: Bool?
 
     public init(ledger: DayLedger, phase: Phase = .open, graceUntil: Date? = nil,
                 request: PendingRequest? = nil, lockSentAt: Date? = nil,
-                lockConfirmedAt: Date? = nil) {
+                lockConfirmedAt: Date? = nil, askDenied: Bool? = nil) {
         self.ledger = ledger
         self.phase = phase
         self.graceUntil = graceUntil
         self.request = request
         self.lockSentAt = lockSentAt
         self.lockConfirmedAt = lockConfirmedAt
+        self.askDenied = askDenied
     }
 
     public static func fresh(for date: Date, calendar: Calendar) -> PolicyState {
@@ -80,6 +84,14 @@ public enum PolicyAction: Equatable {
     case logout
 }
 
+/// What the child can do about more time, sent to the agent with every state message.
+public enum AskState: String, Codable, Equatable {
+    case available
+    case waiting
+    case denied
+    case unavailable
+}
+
 public enum Policy {
     /// Seconds the agent has to confirm a lock before the daemon logs the child out.
     public static let lockConfirmTimeout: TimeInterval = 30
@@ -88,6 +100,13 @@ public enum Policy {
     public static func remaining(_ state: PolicyState, now: Date, config: Config,
                                  calendar: Calendar) -> Int {
         state.ledger.remaining(budget: DayLedger.budget(for: now, config: config, calendar: calendar))
+    }
+
+    public static func askState(_ s: PolicyState, config: Config) -> AskState {
+        if s.request != nil { return .waiting }
+        if s.askDenied == true { return .denied }
+        if config.telegramBotToken.isEmpty || s.ledger.lockedByParent { return .unavailable }
+        return s.phase == .grace || s.phase == .locked ? .available : .unavailable
     }
 
     public static func reduce(_ state: PolicyState, _ event: PolicyEvent, now: Date,
@@ -146,7 +165,8 @@ public enum Policy {
             }
 
         case let .askForTime(requestID):
-            guard s.phase == .grace, s.request == nil else { break }
+            guard s.phase == .grace || s.phase == .locked, s.request == nil,
+                  s.askDenied != true, !s.ledger.lockedByParent else { break }
             if config.telegramBotToken.isEmpty {
                 actions.append(.requestResult(requestID: requestID, approved: false))
                 break
@@ -154,7 +174,9 @@ public enum Policy {
             s.request = PendingRequest(
                 id: requestID, seconds: config.extensionTime,
                 deadline: now.addingTimeInterval(TimeInterval(config.approvalTimeout)))
-            s.phase = .pending
+            if s.phase == .grace {
+                s.phase = .pending
+            }
             actions.append(.sendTimeRequest(requestID: requestID, seconds: config.extensionTime))
 
         case let .answer(requestID, approved):
@@ -164,8 +186,11 @@ public enum Policy {
             if approved {
                 s.ledger.grantExtra(seconds: request.seconds)
                 reopen(&s, now: now, budget: budget, actions: &actions)
-            } else if s.phase == .pending {
-                lock(&s, now: now, actions: &actions)
+            } else {
+                s.askDenied = true
+                if s.phase == .pending {
+                    lock(&s, now: now, actions: &actions)
+                }
             }
 
         case let .command(command):
@@ -173,10 +198,12 @@ public enum Policy {
             case .status, .help:
                 break
             case let .extra(seconds):
+                s.askDenied = nil
                 s.ledger.grantExtra(seconds: seconds)
                 supersedeRequest(&s, actions: &actions)
                 reopen(&s, now: now, budget: budget, actions: &actions)
             case let .studio(seconds):
+                s.askDenied = nil
                 s.ledger.startStudio(seconds: seconds, now: now)
                 supersedeRequest(&s, actions: &actions)
                 reopen(&s, now: now, budget: budget, actions: &actions)
@@ -187,6 +214,7 @@ public enum Policy {
                     lock(&s, now: now, actions: &actions)
                 }
             case .unlock:
+                s.askDenied = nil
                 s.ledger.lockedByParent = false
                 reopen(&s, now: now, budget: budget, actions: &actions)
             }

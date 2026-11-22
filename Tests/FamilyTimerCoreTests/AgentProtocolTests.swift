@@ -29,6 +29,15 @@ final class AgentProtocolTests: XCTestCase {
         XCTAssertEqual(buffer.append(Data("c\n\nde\nf".utf8)), [Data("abc".utf8), Data("de".utf8)])
         XCTAssertEqual(buffer.append(Data("ghijkl\nmn\n".utf8)), [Data("mn".utf8)])
     }
+
+    func testAskStateWire() throws {
+        let message = DaemonMessage(type: .state, askState: .denied)
+        let data = Wire.encode(message)
+        let string = String(decoding: data, as: UTF8.self)
+        XCTAssertTrue(string.contains("\"askState\":\"denied\""))
+        let withoutNewline = Data(string.dropLast().utf8)
+        XCTAssertEqual(try JSONDecoder().decode(DaemonMessage.self, from: withoutNewline), message)
+    }
 }
 
 final class AgentTextsTests: XCTestCase {
@@ -45,5 +54,10 @@ final class AgentTextsTests: XCTestCase {
         XCTAssertEqual(AgentTexts.warning(minutes: 1, .en), "1 minute left today. Save your work.")
         XCTAssertEqual(AgentTexts.expired(graceRemaining: 300, .it),
                        "Il tempo di oggi è finito. Lo schermo si blocca tra 5m.\nPuoi chiedere altro tempo ai genitori.")
+    }
+
+    func testLockedTexts() {
+        XCTAssertEqual(AgentTexts.lockedDenied(.it), "Un genitore ha detto no: per oggi il tempo è finito.")
+        XCTAssertEqual(AgentTexts.lockedAsk(.en), "Today's time is over. You can ask a parent for more time.")
     }
 }

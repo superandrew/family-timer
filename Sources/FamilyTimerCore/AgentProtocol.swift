@@ -30,10 +30,12 @@ public struct DaemonMessage: Codable, Equatable {
     public var language: Language?
     /// `request_result`.
     public var approved: Bool?
+    /// `state`: what the child can do about more time.
+    public var askState: AskState?
 
     public init(type: DaemonMessageType, remaining: Int? = nil, phase: Phase? = nil,
                 graceRemaining: Int? = nil, dryRun: Bool? = nil, language: Language? = nil,
-                approved: Bool? = nil) {
+                approved: Bool? = nil, askState: AskState? = nil) {
         self.type = type
         self.remaining = remaining
         self.phase = phase
@@ -41,6 +43,7 @@ public struct DaemonMessage: Codable, Equatable {
         self.dryRun = dryRun
         self.language = language
         self.approved = approved
+        self.askState = askState
     }
 
     /// The message for a policy action, or nil when the action is not for the agent.
