@@ -20,7 +20,20 @@ func hidIdleSeconds() -> Double? {
           let ns = (prop as? NSNumber)?.uint64Value else { return nil }
     return Double(ns) / 1_000_000_000
 }
-print("HIDIdleTime: \(hidIdleSeconds().map { String(format: "%.2f s", $0) } ?? "nil")")
+// Lock state of the console session, read from the IORegistry (what the daemon uses).
+func screenLocked() -> String {
+    let root = IORegistryGetRootEntry(kIOMainPortDefault)
+    defer { IOObjectRelease(root) }
+    let users = IORegistryEntryCreateCFProperty(root, "IOConsoleUsers" as CFString,
+                                                kCFAllocatorDefault, 0)?.takeRetainedValue() as? [[String: Any]]
+    let me = users?.first { ($0["kCGSSessionUserIDKey"] as? NSNumber)?.uint32Value == uid }
+    return (me?["CGSSessionScreenIsLocked"] as? Bool) == true ? "LOCKED" : "unlocked"
+}
+
+func sample() -> String {
+    "HIDIdleTime: \(hidIdleSeconds().map { String(format: "%.2f s", $0) } ?? "nil")  screen: \(screenLocked())"
+}
+print(sample())
 
 // 3. SACLockScreenImmediate
 let path = "/System/Library/PrivateFrameworks/login.framework/Versions/Current/login"
@@ -41,8 +54,8 @@ if CommandLine.arguments.contains("--lock") {
     let rc = fn()
     print("returned \(rc)")
     // Watch HIDIdleTime grow while locked; unlock to stop.
-    for _ in 0..<6 {
-        Thread.sleep(forTimeInterval: 5)
-        print("HIDIdleTime: \(hidIdleSeconds().map { String(format: "%.2f s", $0) } ?? "nil")")
+    for _ in 0..<15 {
+        Thread.sleep(forTimeInterval: 2)
+        print(sample())
     }
 }
