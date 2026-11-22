@@ -7,10 +7,12 @@ let package = Package(
     products: [
         .library(name: "FamilyTimerCore", targets: ["FamilyTimerCore"]),
         .executable(name: "familytimerd", targets: ["familytimerd"]),
+        .executable(name: "FamilyTimerAgent", targets: ["FamilyTimerAgent"]),
     ],
     targets: [
         .target(name: "FamilyTimerCore"),
         .executableTarget(name: "familytimerd", dependencies: ["FamilyTimerCore"]),
+        .executableTarget(name: "FamilyTimerAgent", dependencies: ["FamilyTimerCore"]),
         .testTarget(name: "FamilyTimerCoreTests", dependencies: ["FamilyTimerCore"]),
     ]
 )

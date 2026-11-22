@@ -11,6 +11,7 @@ final class AgentServer: AgentLink, @unchecked Sendable {
 
     private let lock = NSLock()
     private var clients: Set<Int32> = []
+    private var refusedLogged: Set<uid_t> = []
 
     init(path: String, childUID: uid_t) {
         self.path = path
@@ -52,7 +53,9 @@ final class AgentServer: AgentLink, @unchecked Sendable {
             var uid: uid_t = 0
             var gid: gid_t = 0
             guard getpeereid(client, &uid, &gid) == 0, uid == childUID else {
-                Log.info("agent socket: refused uid \(uid)")
+                if refusedLogged.insert(uid).inserted {
+                    Log.info("agent socket: refused uid \(uid) (not the child; logged once)")
+                }
                 close(client)
                 continue
             }
