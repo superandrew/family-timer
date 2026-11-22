@@ -241,6 +241,11 @@ parents say which Mac and which child account.
   Healthchecks URLs never go in the repository; `deploy.sh` reads them from a local file
   outside the repo, ignored by git.
 - `sudo` asks for the admin password once per deploy; no `NOPASSWD` rule is installed.
+- Per-Mac details (host, admin, child account, CPU, macOS) live in the local file next to the
+  secrets, never in the repository.
+- A Mac may still run the old minertimer (`/Library/LaunchDaemons/com.soferio.minertimer_daily_timer.plist`):
+  leave it during `DRY_RUN`; the real install boots it out and moves its plist aside (kept,
+  not deleted) so the two never both enforce.
 
 ## 8. Open questions
 
