@@ -40,7 +40,8 @@ parse with plain `String` operations as described.
 
 Returns seconds, or nil.
 
-1. `s` = `text` trimmed of whitespace, lowercased. Empty -> nil.
+1. `s` = `text` trimmed of whitespace, lowercased. Empty, or longer than 6 characters -> nil
+   (no valid duration is longer, and this prevents `Int` overflow on `* 60`).
 2. If every character of `s` is an ASCII digit: minutes = `Int(s)`.
 3. Else if `s` ends with `"min"`: the part before must be all ASCII digits (at least one);
    minutes = that number.
@@ -55,7 +56,8 @@ Returns seconds, or nil.
 
 ### parseCommand
 
-1. Trim `text`. Split on whitespace, dropping empty parts. No parts ->
+1. Trim `text`. Split on any whitespace (`split(whereSeparator: { $0.isWhitespace })`, so
+   newlines and tabs count), dropping empty parts. No parts ->
    `.failure(.unknown(""))`.
 2. `word` = first part, lowercased. If it contains `"@"`, keep only what comes before the
    first `"@"` (`"/extra@family_bot"` -> `"/extra"`).
@@ -89,6 +91,8 @@ Returns seconds, or nil.
 | `"h"` | `nil` |
 | `"abc"` | `nil` |
 | `""` | `nil` |
+| `"9999999"` | `nil` |
+| `"999999999999999999"` | `nil` |
 
 `testCommands`: one `XCTAssertEqual(parseCommand(input), expected)` per row.
 
@@ -100,6 +104,7 @@ Returns seconds, or nil.
 | `"/extra 30"` | `.success(.extra(seconds: 30 * 60))` |
 | `"/extra@family_bot 1h"` | `.success(.extra(seconds: 3600))` |
 | `"/studio 2h please"` | `.success(.studio(seconds: 2 * 3600))` |
+| `"/extra\n30"` | `.success(.extra(seconds: 30 * 60))` |
 | `"/extra"` | `.failure(.missingDuration("/extra"))` |
 | `"/studio xx"` | `.failure(.invalidDuration("xx"))` |
 | `"/lock"` | `.success(.lock)` |
