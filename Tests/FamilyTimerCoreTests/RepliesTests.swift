@@ -87,4 +87,17 @@ final class RepliesTests: XCTestCase {
         XCTAssertEqual(Replies.decided("Q", approved: false, by: "Ann", .it), "Q\n❌ Negato da Ann.")
         XCTAssertTrue(Replies.help(.it).hasPrefix("/status - tempo usato e rimasto oggi\n"))
     }
+
+    func testAgentLines() {
+        var it = config
+        it.language = .it
+        let state = PolicyState(ledger: DayLedger(day: "2026-11-23", used: 600))
+        XCTAssertTrue(Replies.status(state, now: at(10, 0), config: config, calendar: calendar,
+                                     agentConnected: true).hasSuffix("\nMenu bar app: connected."))
+        XCTAssertTrue(Replies.reply(to: .status, after: state, now: at(10, 0), config: it, calendar: calendar,
+                                    agentConnected: false).hasSuffix("\nApp nella barra: non collegata."))
+        XCTAssertFalse(Replies.status(state, now: at(10, 0), config: config, calendar: calendar).contains("app"))
+        XCTAssertEqual(Replies.agentBack(child: "arthur", .it), "✅ arthur: l'app nella barra è di nuovo collegata.")
+        XCTAssertTrue(Replies.agentMissing(child: "arthur", .en).hasPrefix("⚠️ arthur: the menu bar app"))
+    }
 }

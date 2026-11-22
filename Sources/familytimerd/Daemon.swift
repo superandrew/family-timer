@@ -5,6 +5,7 @@ import FamilyTimerCore
 protocol AgentLink: Sendable {
     func send(_ action: PolicyAction) async
     func broadcast(_ message: DaemonMessage)
+    var hasClients: Bool { get }
 }
 
 struct Paths {
@@ -29,6 +30,7 @@ actor Daemon {
     /// Request id -> (message id, text) of the Telegram message with the buttons.
     private var requestMessages: [String: (id: Int64, text: String)] = [:]
     private var lastSummary = Date.distantPast
+    private var watch = AgentWatch()
 
     init(config: Config, paths: Paths, dryRun: Bool, agent: AgentLink) {
         self.config = config
@@ -72,9 +74,31 @@ actor Daemon {
         }
         await apply(.tick(seconds: Self.tickSeconds, active: active), console: console)
         sendState()
+        await watchAgent(console: console)
         if Date().timeIntervalSince(lastSummary) >= 300 {
             lastSummary = Date()
             Log.info("status: \(describe()) console \(console?.name ?? "-") idle \(Int(idle))s")
+        }
+    }
+
+    /// Restarts the menu bar app when the child is at the console without it, then tells the
+    /// parents if that did not help (AgentWatch), and again when it is back.
+    private func watchAgent(console: (name: String, uid: uid_t)?) async {
+        let atConsole = console?.name == config.childUser
+        let action = watch.check(now: Date(), childAtConsole: atConsole, agentConnected: agent.hasClients)
+        switch action {
+        case .restart:
+            guard let console else { return }
+            let status = System.restartAgent(uid: console.uid)
+            Log.info("agent missing for \(console.name): restart \(watch.restarts)/\(AgentWatch.maxRestarts), exit \(status)")
+        case .notifyMissing:
+            Log.info("agent still missing after \(AgentWatch.maxRestarts) restarts: telling the parents")
+            try? await telegram?.send(Replies.agentMissing(child: config.displayName, config.language))
+        case .notifyBack:
+            Log.info("agent back: telling the parents")
+            try? await telegram?.send(Replies.agentBack(child: config.displayName, config.language))
+        case nil:
+            break
         }
     }
 
@@ -190,7 +214,8 @@ actor Daemon {
             case let .success(command):
                 await apply(.command(command), console: System.consoleUser())
                 sendState()
-                reply = Replies.reply(to: command, after: state, now: Date(), config: config, calendar: calendar)
+                reply = Replies.reply(to: command, after: state, now: Date(), config: config, calendar: calendar,
+                                      agentConnected: agent.hasClients)
                 Log.info("command \(command) from \(fromID)")
             case let .failure(error):
                 reply = Replies.error(error, config.language)

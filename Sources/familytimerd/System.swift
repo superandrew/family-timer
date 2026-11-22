@@ -1,4 +1,5 @@
 import Foundation
+import FamilyTimerCore
 import IOKit
 import SystemConfiguration
 
@@ -42,15 +43,30 @@ enum System {
 
     /// Ends the GUI session of `uid` (the child is logged out). Returns the exit status.
     @discardableResult
+    /// Starts the menu bar app in the session of `uid` (AgentWatch). If launchd still has the
+    /// job, restart it; if it was booted out, load it again from its plist.
+    static func restartAgent(uid: uid_t) -> Int32 {
+        let label = "\(FamilyTimer.bundleID).agent"
+        let plist = "/Library/LaunchAgents/\(label).plist"
+        if run("/bin/launchctl", ["print", "gui/\(uid)/\(label)"], quiet: true) == 0 {
+            return run("/bin/launchctl", ["kickstart", "-k", "gui/\(uid)/\(label)"])
+        }
+        return run("/bin/launchctl", ["bootstrap", "gui/\(uid)", plist])
+    }
+
     static func logout(uid: uid_t) -> Int32 {
         run("/bin/launchctl", ["bootout", "gui/\(uid)"])
     }
 
     @discardableResult
-    static func run(_ path: String, _ arguments: [String]) -> Int32 {
+    static func run(_ path: String, _ arguments: [String], quiet: Bool = false) -> Int32 {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
         process.arguments = arguments
+        if quiet {
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+        }
         do {
             try process.run()
             process.waitUntilExit()

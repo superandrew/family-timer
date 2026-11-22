@@ -35,8 +35,9 @@ public enum Replies {
         }
     }
 
+    /// `agentConnected`: whether the menu bar app is connected (nil: unknown, not shown).
     public static func status(_ state: PolicyState, now: Date, config: Config,
-                              calendar: Calendar) -> String {
+                              calendar: Calendar, agentConnected: Bool? = nil) -> String {
         let l = config.language
         let budget = DayLedger.budget(for: now, config: config, calendar: calendar)
         let ledger = state.ledger
@@ -56,15 +57,21 @@ public enum Replies {
             lines.append(t(l, "Locked by a parent until midnight or /unlock.",
                               "Bloccato da un genitore fino a mezzanotte o /unlock."))
         }
+        if let agentConnected {
+            lines.append(agentConnected ? t(l, "Menu bar app: connected.", "App nella barra: collegata.")
+                                        : t(l, "Menu bar app: not connected.", "App nella barra: non collegata."))
+        }
         return lines.joined(separator: "\n")
     }
 
     /// The answer to a parent command, given the state after the command. Starts with the
     /// child's name: with one bot per child in the same group, every answer says whose it is.
     public static func reply(to command: Command, after state: PolicyState, now: Date,
-                             config: Config, calendar: Calendar) -> String {
+                             config: Config, calendar: Calendar, agentConnected: Bool? = nil) -> String {
         switch command {
-        case .status, .help:
+        case .status:
+            return status(state, now: now, config: config, calendar: calendar, agentConnected: agentConnected)
+        case .help:
             return body(to: command, after: state, now: now, config: config, calendar: calendar)
         default:
             return config.displayName + ": "
@@ -158,5 +165,18 @@ public enum Replies {
 
     public static func parentsOnly(_ l: Language) -> String {
         t(l, "Only parents can answer.", "Solo i genitori possono rispondere.")
+    }
+
+    /// AgentWatch gave up restarting the menu bar app: the child has no countdown or dialog.
+    public static func agentMissing(child: String, _ l: Language) -> String {
+        t(l, "⚠️ \(child): the menu bar app on the Mac does not respond (restarted twice). "
+             + "Time still counts and the lock still works, but without warnings.",
+             "⚠️ \(child): l'app nella barra del Mac non risponde (riavviata due volte). "
+             + "Il tempo conta e il blocco funziona, ma senza avvisi.")
+    }
+
+    public static func agentBack(child: String, _ l: Language) -> String {
+        t(l, "✅ \(child): the menu bar app is connected again.",
+             "✅ \(child): l'app nella barra è di nuovo collegata.")
     }
 }
