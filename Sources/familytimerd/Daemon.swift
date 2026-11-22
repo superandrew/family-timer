@@ -93,10 +93,10 @@ actor Daemon {
             Log.info("agent missing for \(console.name): restart \(watch.restarts)/\(AgentWatch.maxRestarts), exit \(status)")
         case .notifyMissing:
             Log.info("agent still missing after \(AgentWatch.maxRestarts) restarts: telling the parents")
-            try? await telegram?.send(Replies.agentMissing(child: config.displayName, config.language))
+            _ = try? await telegram?.send(Replies.agentMissing(child: config.displayName, config.language))
         case .notifyBack:
             Log.info("agent back: telling the parents")
-            try? await telegram?.send(Replies.agentBack(child: config.displayName, config.language))
+            _ = try? await telegram?.send(Replies.agentBack(child: config.displayName, config.language))
         case nil:
             break
         }

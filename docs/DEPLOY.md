@@ -120,7 +120,7 @@ From Telegram, `/status NAME` in the parents' group answers with the same number
 | Symptom | Cause, fix |
 |---|---|
 | `Bootstrap failed: 5: Input/output error` | the old job was still stopping; the updater now waits. Check `launchctl print`: often the job is running anyway |
-| no ⏱ in the child's menu bar | agent not running in that session: `ps` above. Redeploy, or log the child out and in. It also stays hidden until the first `state` message (a few seconds) |
+| no ⏱ in the child's menu bar | agent not running in that session: `ps` above. The daemon restarts it after 60 s (`agent missing ... restart 1/2` in the log), twice, then tells the parents on Telegram. It also stays hidden until the first `state` message (a few seconds) |
 | `agent socket: refused uid N` in the log | a non-child session (a parent) connected; expected |
 | `getUpdates failed: The network connection was lost` | the Mac slept or the network dropped; it retries by itself |
 | deploy says "first install" on a Mac that had it | `/etc/sudoers.d/familytimer` is missing or names another admin |
