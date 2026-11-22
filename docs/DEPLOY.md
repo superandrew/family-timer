@@ -110,9 +110,10 @@ The keychain is in the user's keychain search list (`security list-keychains -d 
 which stays the same across builds. Losing the files means a new certificate and granting
 the permission again on every Mac.
 
-Granting it, once per Mac, by a person at that Mac with an admin password: System Settings ›
-Privacy & Security › Accessibility › `+`, press Cmd-Shift-G, type
-`/usr/local/libexec/familytimer/FamilyTimerAgent`, add it and turn it on. Until then the
+Granting it, once per Mac, by a person at that Mac with an admin password. The agent asks
+macOS once per user (`AXIsProcessTrustedWithOptions`), which adds `FamilyTimerAgent` to System
+Settings › Privacy & Security › Accessibility, switched off: turn it on there. If it is not in
+the list, add it with `+`, Cmd-Shift-G, `/usr/local/libexec/familytimer/FamilyTimerAgent`. Until then the
 parents get a Telegram notice at most once a day and only apps are recorded.
 
 ## Checking a Mac

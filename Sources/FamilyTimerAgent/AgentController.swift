@@ -49,6 +49,7 @@ final class AgentController: NSObject {
         connection.onConnected = { [weak self] in self?.connection.send(AgentMessage.hello) }
         connection.onMessage = { [weak self] message in self?.handle(message) }
         connection.start()
+        FrontmostReader.registerOnce()
 
         Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {

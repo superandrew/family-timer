@@ -20,6 +20,17 @@ enum FrontmostReader {
 
     static var accessibility: Bool { AXIsProcessTrusted() }
 
+    /// Without the permission, ask macOS once per user: it adds the agent to the
+    /// Accessibility list (switched off) and offers to open System Settings, where an admin
+    /// turns it on. Asked only once, so the child is not shown the request at every start.
+    static func registerOnce() {
+        let key = "accessibilityRequested"
+        guard !accessibility, !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+    }
+
     static func read() -> Frontmost? {
         guard let app = NSWorkspace.shared.frontmostApplication,
               let bundleID = app.bundleIdentifier else { return nil }
