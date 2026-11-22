@@ -36,6 +36,7 @@ let server = AgentServer(path: env["FAMILYTIMER_SOCKET"] ?? "/var/run/familytime
                          childUID: child.pointee.pw_uid)
 let daemon = Daemon(config: config, paths: paths, dryRun: dryRun, agent: server)
 server.onMessage = { message in Task { await daemon.agentMessage(message) } }
+server.onReport = { report in Task { await daemon.agentReport(report) } }
 do { try server.start() } catch {
     Log.info("cannot open the agent socket: \(error.localizedDescription)")
     exit(71) // EX_OSERR

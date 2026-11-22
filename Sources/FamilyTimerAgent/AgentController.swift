@@ -46,16 +46,30 @@ final class AgentController: NSObject {
         statusItem.menu = menu
         refreshMenu()
 
-        connection.onConnected = { [weak self] in self?.connection.send(.hello) }
+        connection.onConnected = { [weak self] in self?.connection.send(AgentMessage.hello) }
         connection.onMessage = { [weak self] message in self?.handle(message) }
         connection.start()
 
         Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.connection.send(.heartbeat) }
+            MainActor.assumeIsolated {
+                self?.connection.send(AgentMessage.heartbeat)
+                self?.report()
+            }
+        }
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.report() }
         }
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.lockLoop() }
         }
+    }
+
+    /// What is in front, for the daemon's usage log (SPEC 9).
+    private func report() {
+        connection.send(AgentReport(frontmost: FrontmostReader.read(),
+                                    accessibility: FrontmostReader.accessibility))
     }
 
     // MARK: daemon messages
@@ -73,7 +87,8 @@ final class AgentController: NSObject {
             if let phase = message.phase { setPhase(phase) }
             if phase == .open, let previous, let now = remaining {
                 for minutes in [5, 1] where previous > minutes * 60 && now <= minutes * 60 && now > 0 {
-                    notice.show(AgentTexts.warning(minutes: minutes, language), primary: AgentTexts.okButton(language))
+                    notice.show(AgentTexts.warning(minutes: minutes, language), icon: "⏳",
+                                primary: AgentTexts.okButton(language))
                 }
             }
             if phase == .grace || phase == .pending {
@@ -85,7 +100,8 @@ final class AgentController: NSObject {
             setPhase(.grace)
             showExpired()
         case .requestResult:
-            notice.show(AgentTexts.result(approved: message.approved ?? false, language),
+            let approved = message.approved ?? false
+            notice.show(AgentTexts.result(approved: approved, language), icon: approved ? "✅" : "❌",
                         primary: AgentTexts.okButton(language))
         case .lock:
             setPhase(.locked)
@@ -117,9 +133,9 @@ final class AgentController: NSObject {
     private func showExpired() {
         expiredShown = true
         if asked || phase == .pending {
-            notice.show(AgentTexts.waiting(language), primary: AgentTexts.okButton(language))
+            notice.show(AgentTexts.waiting(language), icon: "✉️", primary: AgentTexts.okButton(language))
         } else {
-            notice.show(AgentTexts.expired(graceRemaining: graceRemaining, language),
+            notice.show(AgentTexts.expired(graceRemaining: graceRemaining, language), icon: "⏰",
                         primary: AgentTexts.okButton(language),
                         secondary: AgentTexts.askButton(language), { [weak self] in self?.ask() })
         }
@@ -128,8 +144,8 @@ final class AgentController: NSObject {
     private func ask() {
         guard !asked else { return }
         asked = true
-        connection.send(.requestTime)
-        notice.show(AgentTexts.waiting(language), primary: AgentTexts.okButton(language))
+        connection.send(AgentMessage.requestTime)
+        notice.show(AgentTexts.waiting(language), icon: "✉️", primary: AgentTexts.okButton(language))
         refreshMenu()
     }
 
@@ -160,7 +176,7 @@ final class AgentController: NSObject {
     private func lockLoop(immediate: Bool = false) {
         guard phase == .locked else { return }
         if Screen.isLocked() {
-            connection.send(.locked)
+            connection.send(AgentMessage.locked)
             holdUntil = nil
             return
         }
@@ -189,17 +205,17 @@ final class AgentController: NSObject {
         switch askState {
         case .available:
             hold(15)
-            notice.show(AgentTexts.lockedAsk(language), primary: ok, { [weak self] in self?.lockNow() },
+            notice.show(AgentTexts.lockedAsk(language), icon: "🔒", countdown: 15, primary: ok, { [weak self] in self?.lockNow() },
                         secondary: AgentTexts.askButton(language), { [weak self] in self?.askWhileLocked() })
         case .waiting:
             hold(5)
-            notice.show(AgentTexts.lockedWaiting(language), primary: ok, { [weak self] in self?.lockNow() })
+            notice.show(AgentTexts.lockedWaiting(language), icon: "✉️", countdown: 5, primary: ok, { [weak self] in self?.lockNow() })
         case .denied:
             hold(5)
-            notice.show(AgentTexts.lockedDenied(language), primary: ok, { [weak self] in self?.lockNow() })
+            notice.show(AgentTexts.lockedDenied(language), icon: "❌", countdown: 5, primary: ok, { [weak self] in self?.lockNow() })
         case .unavailable:
             hold(5)
-            notice.show(AgentTexts.lockedOver(language), primary: ok, { [weak self] in self?.lockNow() })
+            notice.show(AgentTexts.lockedOver(language), icon: "🔒", countdown: 5, primary: ok, { [weak self] in self?.lockNow() })
         }
     }
 
@@ -220,9 +236,9 @@ final class AgentController: NSObject {
     private func askWhileLocked() {
         guard phase == .locked, askState == .available else { return }
         askState = .waiting
-        connection.send(.requestTime)
-        notice.show(AgentTexts.lockedWaiting(language), primary: AgentTexts.okButton(language),
-                    { [weak self] in self?.lockNow() })
+        connection.send(AgentMessage.requestTime)
+        notice.show(AgentTexts.lockedWaiting(language), icon: "✉️", countdown: 3,
+                    primary: AgentTexts.okButton(language), { [weak self] in self?.lockNow() })
         hold(3)
         refreshMenu()
     }

@@ -8,6 +8,8 @@ final class AgentServer: AgentLink, @unchecked Sendable {
     let childUID: uid_t
     /// Called for every message from an accepted agent.
     var onMessage: (@Sendable (AgentMessage) -> Void)?
+    /// Called for every report of what is in front (SPEC 9).
+    var onReport: (@Sendable (AgentReport) -> Void)?
 
     private let lock = NSLock()
     private var clients: Set<Int32> = []
@@ -76,6 +78,8 @@ final class AgentServer: AgentLink, @unchecked Sendable {
             for line in lines.append(Data(chunk[0..<n])) {
                 if let message = try? JSONDecoder().decode(AgentMessage.self, from: line) {
                     onMessage?(message)
+                } else if let report = try? JSONDecoder().decode(AgentReport.self, from: line) {
+                    onReport?(report)
                 }
             }
         }

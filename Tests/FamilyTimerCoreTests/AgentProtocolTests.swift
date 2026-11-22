@@ -60,4 +60,14 @@ final class AgentTextsTests: XCTestCase {
         XCTAssertEqual(AgentTexts.lockedDenied(.it), "Un genitore ha detto no: per oggi il tempo è finito.")
         XCTAssertEqual(AgentTexts.lockedAsk(.en), "Today's time is over. You can ask a parent for more time.")
     }
+
+    func testAgentReportWire() throws {
+        let report = AgentReport(frontmost: Frontmost(bundleID: "com.apple.Safari", name: "Safari",
+                                                      url: "https://youtube.com", title: "x"),
+                                 accessibility: true)
+        let line = Wire.encode(report).dropLast()
+        XCTAssertEqual(try JSONDecoder().decode(AgentReport.self, from: line), report)
+        XCTAssertNil(try? JSONDecoder().decode(AgentMessage.self, from: line))
+        XCTAssertNil(try? JSONDecoder().decode(AgentReport.self, from: Wire.encode(AgentMessage.hello).dropLast()))
+    }
 }

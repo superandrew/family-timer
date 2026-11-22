@@ -19,7 +19,7 @@ final class AgentConnection: @unchecked Sendable {
         Thread.detachNewThread { [self] in loop() }
     }
 
-    func send(_ message: AgentMessage) {
+    func send<T: Encodable>(_ message: T) {
         let data = Wire.encode(message)
         lock.lock(); let current = fd; lock.unlock()
         guard current >= 0 else { return }

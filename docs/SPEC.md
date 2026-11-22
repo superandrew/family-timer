@@ -108,7 +108,7 @@ The daemon ignores messages from a uid other than the configured child.
 | `open` | budget left, or a `/studio` window is running | `grace` when remaining hits 0 |
 | `grace` | budget over; dialog shown; the child may keep going for `GRACE_TIME` (default 300 s) | `pending` on Ask; `locked` at grace end |
 | `pending` | request sent to Telegram, waiting up to `APPROVAL_TIMEOUT` (default 600 s); child still inside until grace ends | `open` on Approve; `locked` on Deny, timeout or grace end without answer |
-| `locked` | screen locked and re-locked | `open` on `/extra`, `/studio`, `/unlock`, a late Approve, or a new day |
+| `locked` | screen locked and re-locked | `open` on `/extra`, `/studio`, `/unlock`, an Approve, time coming back (a higher limit), or a new day |
 
 `/lock` forces `locked` until midnight or `/unlock`, whatever the budget.
 A Telegram approval that arrives after the lock still grants the time and unlocks.
@@ -117,8 +117,11 @@ Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
 
 - Only `open` counts. Grace is not charged to the extra time a parent then grants, and
   a locked screen never counts.
-- The child can ask only in `grace`, once per grace. Without a Telegram token the request
-  is refused at once and the child stays in `grace`.
+- The child can ask in `grace` and, since task 012, in `locked`: when the child unlocks the
+  screen, the agent shows a small window for 15 s with "Ask for more time", then locks again
+  (5 s with nothing to ask; the window at most once a minute). One request at a time.
+  After a Deny no request until midnight or a parent's `/extra`, `/studio`, `/unlock`.
+  No request under `/lock`. Without a Telegram token the request is refused at once.
 - A request survives the lock, so a late Approve works; a late Deny changes nothing.
   `/extra`, `/studio` and `/lock` cancel an open request.
 - `/lock` wins: `/extra`, `/studio` and a late Approve add time but do not unlock while it
@@ -225,6 +228,9 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 009 | S | End-to-end test on a throw-away standard user, in dry-run first |
 | 010 | S | Done. `bin/deploy` + `deploy/update`: install on the family Macs over SSH (7.2, `docs/DEPLOY.md`) |
 | 011 | L | Done. `AgentWatch`: when to restart a missing agent and when to tell the parents |
+| 012 | L | Done. Ask for more time while locked; a denial holds until midnight |
+| 013 | L | Done. `UsageLog`: seconds per app and per site, per day |
+| 014 | L | Done. `/app`, `/oggi`, usage replies, category buttons; locked reopens when time comes back |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 
@@ -267,6 +273,25 @@ parents say which Mac and which child account.
   which closes Minecraft after its own daily limit. The two are independent and are kept
   together: Minecraft time also counts for FamilyTimer. `/extra` does not extend Minecraft.
   Per-app limits controlled from Telegram are a candidate for v2.
+
+## 9. Usage per app and per site (v2, in progress)
+
+What the children use, for the parents to see; no rules yet (they come once the parents have
+seen a few weeks of data).
+
+- The agent reports the app in front every 10 s and at every app switch (`AgentReport`). For
+  a browser it adds the page's address and title, read with the Accessibility API; the
+  permission is granted once per Mac by an admin (`docs/DEPLOY.md`). Without it only the app
+  is known and the parents get a notice on Telegram, at most once a day.
+- Every tick of active use (child at the console, not idle, not locked) adds 15 s to the app
+  and, for a browser, to the site (`UsageLog`, host without `www.`). 35 days are kept in
+  `usage.json`. Titles are not stored.
+- `/app NAME` shows the last 7 days, `/oggi NAME` today, apps and sites apart. Something not
+  yet classified gets buttons 🎮 games / 📚 study / 📺 video / ▫️ other: under `/app` for the
+  first five above 5 minutes, and once on its own when it passes 10 minutes in total.
+- Trust: the report comes from the child's session, so a child who writes to the socket can
+  lie about it. Good enough to look at; rules that close apps will check the process list.
+- Next: per-category limits (for example games), decided by the parents with the data.
 
 ## 8. Open questions
 

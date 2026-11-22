@@ -13,6 +13,8 @@ struct Paths {
     var stateDir: URL
     var state: URL { stateDir.appendingPathComponent("state.json") }
     var telegram: URL { stateDir.appendingPathComponent("telegram.json") }
+    var usage: URL { stateDir.appendingPathComponent("usage.json") }
+    var accessibilityNotice: URL { stateDir.appendingPathComponent("accessibility-notice") }
 }
 
 actor Daemon {
@@ -31,6 +33,9 @@ actor Daemon {
     private var requestMessages: [String: (id: Int64, text: String)] = [:]
     private var lastSummary = Date.distantPast
     private var watch = AgentWatch()
+    /// Seconds per app and per site (SPEC 9), and what the agent last said is in front.
+    private var usage = UsageLog()
+    private var front: (report: AgentReport, at: Date)?
 
     init(config: Config, paths: Paths, dryRun: Bool, agent: AgentLink) {
         self.config = config
@@ -52,6 +57,10 @@ actor Daemon {
         if let data = try? Data(contentsOf: paths.telegram),
            let saved = try? JSONDecoder().decode([String: Int64].self, from: data) {
             offset = saved["offset"]
+        }
+        if let data = try? Data(contentsOf: paths.usage),
+           let saved = try? JSONDecoder().decode(UsageLog.self, from: data) {
+            usage = saved
         }
     }
 
@@ -75,10 +84,79 @@ actor Daemon {
         await apply(.tick(seconds: Self.tickSeconds, active: active), console: console)
         sendState()
         await watchAgent(console: console)
+        if active && state.phase != .locked {
+            await countUsage()
+        }
         if Date().timeIntervalSince(lastSummary) >= 300 {
             lastSummary = Date()
             Log.info("status: \(describe()) console \(console?.name ?? "-") idle \(Int(idle))s")
         }
+    }
+
+    // MARK: usage (SPEC 9)
+
+    func agentReport(_ report: AgentReport) async {
+        front = (report, Date())
+        if !report.accessibility {
+            await noticeAccessibility()
+        }
+    }
+
+    /// One tick of active use goes to the app in front and, for a browser, to the site.
+    /// When something not yet classified passes 10 minutes, the parents are asked once.
+    private func countUsage() async {
+        guard let front, Date().timeIntervalSince(front.at) < 30,
+              let frontmost = front.report.frontmost,
+              frontmost.bundleID != "com.apple.loginwindow" else { return }
+        var keys = [UsageLog.appKey(frontmost.bundleID)]
+        if let url = frontmost.url, let site = UsageLog.siteKey(url: url) { keys.append(site) }
+        let before = keys.map { usage.total(for: $0) }
+        usage.add(frontmost, seconds: Self.tickSeconds, day: state.ledger.day)
+        try? write(JSONEncoder().encode(usage), to: paths.usage)
+        for (key, old) in zip(keys, before) where usage.categories[key] == nil {
+            let now = usage.total(for: key)
+            if old < 600 && now >= 600 {
+                await askCategory(key: key, seconds: now)
+            }
+        }
+    }
+
+    private func askCategory(key: String, seconds: Int) async {
+        guard let telegram else { return }
+        let l = config.language
+        let buttons = UsageCategory.allCases.map { (Replies.categoryLabel($0, l), "cat:\($0.rawValue):\(key)") }
+        guard buttons.allSatisfy({ $0.1.utf8.count <= 64 }) else { return }
+        let name = usage.names[key] ?? key
+        let text = config.displayName + ": " + Replies.classifyPrompt(name: name, seconds: seconds, l)
+        do { _ = try await telegram.send(text, buttons: buttons) } catch {
+            Log.info("category question NOT sent: \(error.localizedDescription)")
+        }
+    }
+
+    private func usageReply(days: Int) async {
+        guard let telegram else { return }
+        let now = Date()
+        let first = DayLedger.dayKey(now.addingTimeInterval(-Double(days - 1) * 86_400), calendar: calendar)
+        let entries = usage.entries(from: first, to: DayLedger.dayKey(now, calendar: calendar))
+        let text = Replies.usage(entries, categories: usage.categories, child: config.displayName,
+                                 days: days, limit: 12, config.language)
+        do { _ = try await telegram.send(text) } catch {
+            Log.info("reply NOT sent: \(error.localizedDescription)")
+        }
+        for entry in entries.filter({ usage.categories[$0.key] == nil && $0.seconds >= 300 }).prefix(5) {
+            await askCategory(key: entry.key, seconds: entry.seconds)
+        }
+    }
+
+    /// Without the Accessibility permission the agent cannot read the browser's address:
+    /// tell the parents, at most once a day.
+    private func noticeAccessibility() async {
+        let fm = FileManager.default
+        if let date = (try? fm.attributesOfItem(atPath: paths.accessibilityNotice.path))?[.modificationDate] as? Date,
+           Date().timeIntervalSince(date) < 86_400 { return }
+        fm.createFile(atPath: paths.accessibilityNotice.path, contents: Data())
+        Log.info("agent has no Accessibility permission: sites are not recorded")
+        _ = try? await telegram?.send(Replies.accessibilityMissing(child: config.displayName, config.language))
     }
 
     /// Restarts the menu bar app when the child is at the console without it, then tells the
@@ -210,6 +288,11 @@ actor Daemon {
             let (parsed, target) = parseAddressedCommand(text)
             // Another child's bot in the same group answers this one.
             guard config.isAddressed(by: target) else { return }
+            if case let .success(.apps(days)) = parsed {
+                Log.info("command apps(\(days)) from \(fromID)")
+                await usageReply(days: days)
+                return
+            }
             let reply: String
             switch parsed {
             case let .success(command):
@@ -229,6 +312,22 @@ actor Daemon {
         case let .callback(id, chatID, fromID, data, messageID, fromName):
             guard isFromParent(chatID: chatID, fromID: fromID, config: config) else {
                 try? await telegram.answerCallback(id: id, text: Replies.parentsOnly(config.language))
+                return
+            }
+            if data.hasPrefix("cat:") {
+                let parts = data.split(separator: ":", maxSplits: 2).map(String.init)
+                guard parts.count == 3, let category = UsageCategory(rawValue: parts[1]) else {
+                    try? await telegram.answerCallback(id: id, text: "?")
+                    return
+                }
+                let key = parts[2]
+                usage.categories[key] = category
+                try? write(JSONEncoder().encode(usage), to: paths.usage)
+                try? await telegram.answerCallback(id: id, text: "✓")
+                let text = config.displayName + ": " + Replies.classified(
+                    name: usage.names[key] ?? key, category: category, by: fromName, config.language)
+                try? await telegram.edit(messageID: messageID, text: text)
+                Log.info("\(key) is \(category.rawValue) (by \(fromID))")
                 return
             }
             let parts = data.split(separator: ":", maxSplits: 1).map(String.init)

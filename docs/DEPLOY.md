@@ -59,7 +59,8 @@ Never print a token, never copy one into the repository, a commit, a card or a l
 ## What `bin/deploy NAME` does
 
 1. Reads `HOST`, asks the target its CPU (`uname -m`) and builds a release for that CPU only.
-2. Signs both binaries ad hoc with the hardened runtime (`codesign --options runtime`).
+2. Signs both binaries with the hardened runtime, with the local identity in
+   `~/.config/familytimer/signing` when it exists (see below), ad hoc otherwise.
 3. Stages binaries, `deploy/update`, the config and the `dry-run` marker in
    `~/.familytimer-stage` (mode 700) of the admin account on the target.
 4. Runs `sudo -n /usr/local/libexec/familytimer/update ~/.familytimer-stage`, then deletes
@@ -91,6 +92,28 @@ the command for the human to run (in Claude Code, with the `!` prefix):
 Before the first install, the human enables Remote Login for the admin account only and
 adds the developer's SSH key to it. Run `tools/spike0s1.swift` there once (SPEC 0S1) to check
 that locking works on that macOS.
+
+### Signing identity and the Accessibility permission
+
+To record websites the agent needs the **Accessibility** permission (SPEC 9). macOS ties it
+to the code signature: an ad hoc signature changes at every build, so the permission would
+be lost at every deploy. `bin/deploy` therefore signs with a self-signed certificate kept on
+the developer's Mac, outside the repository:
+
+    ~/.config/familytimer/signing/cert.pem, key.pem       the certificate and its key
+    ~/.config/familytimer/signing/familytimer.keychain-db a keychain that holds them
+    ~/.config/familytimer/signing/keychain.pass           that keychain's password
+
+The keychain is in the user's keychain search list (`security list-keychains -d user`);
+`bin/deploy` unlocks it. The designated requirement is then
+`identifier "com.2manyclicks.familytimer.FamilyTimerAgent" and certificate leaf = H"..."`,
+which stays the same across builds. Losing the files means a new certificate and granting
+the permission again on every Mac.
+
+Granting it, once per Mac, by a person at that Mac with an admin password: System Settings ›
+Privacy & Security › Accessibility › `+`, press Cmd-Shift-G, type
+`/usr/local/libexec/familytimer/FamilyTimerAgent`, add it and turn it on. Until then the
+parents get a Telegram notice at most once a day and only apps are recorded.
 
 ## Checking a Mac
 

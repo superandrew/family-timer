@@ -181,6 +181,13 @@ public enum Replies {
              + "Il tempo conta e il blocco funziona, ma senza avvisi.")
     }
 
+    public static func accessibilityMissing(child: String, _ l: Language) -> String {
+        t(l, "ℹ️ \(child): apps are recorded, sites are not: on that Mac, an admin must turn on "
+             + "FamilyTimerAgent in System Settings › Privacy & Security › Accessibility.",
+             "ℹ️ \(child): le app vengono registrate, i siti no: su quel Mac un amministratore deve "
+             + "attivare FamilyTimerAgent in Impostazioni › Privacy e sicurezza › Accessibilità.")
+    }
+
     public static func agentBack(child: String, _ l: Language) -> String {
         t(l, "✅ \(child): the menu bar app is connected again.",
              "✅ \(child): l'app nella barra è di nuovo collegata.")

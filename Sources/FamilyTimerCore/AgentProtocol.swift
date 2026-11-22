@@ -12,6 +12,18 @@ public enum AgentMessage: String, Codable, Equatable {
     case locked
 }
 
+/// The agent's report of what is in front (SPEC 9), sent every 10 s and at every app
+/// switch. `accessibility`: whether the agent may read the browser's address.
+public struct AgentReport: Codable, Equatable {
+    public var frontmost: Frontmost?
+    public var accessibility: Bool
+
+    public init(frontmost: Frontmost?, accessibility: Bool) {
+        self.frontmost = frontmost
+        self.accessibility = accessibility
+    }
+}
+
 public enum DaemonMessageType: String, Codable, Equatable {
     case state
     case showExpiredDialog = "show_expired_dialog"
