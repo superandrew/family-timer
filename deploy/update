@@ -37,6 +37,15 @@ if [ -f "$STAGE/FamilyTimerAgent" ]; then
 fi
 install -o root -g wheel -m 755 "$STAGE/update" "$LIBEXEC/update"
 
+if [ ! -f "$SUDOERS" ]; then
+    echo "== installing the sudoers rule for $ADMIN"
+    tmp=$(mktemp)
+    echo "$ADMIN ALL=(root) NOPASSWD: $LIBEXEC/update" > "$tmp"
+    visudo -cf "$tmp" >/dev/null
+    install -o root -g wheel -m 440 "$tmp" "$SUDOERS"
+    rm -f "$tmp"
+fi
+
 echo "== installing config"
 install -d -o root -g wheel -m 755 "$SUPPORT"
 install -o root -g wheel -m 600 "$STAGE/config" "$SUPPORT/config"
@@ -64,8 +73,18 @@ $dry_run_env
 </dict></plist>
 EOF
 chown root:wheel "$DAEMON_PLIST"; chmod 644 "$DAEMON_PLIST"
+plutil -lint "$DAEMON_PLIST" >/dev/null
 launchctl bootout "system/$BUNDLE_ID.daemon" 2>/dev/null || true
-launchctl bootstrap system "$DAEMON_PLIST"
+for _ in 1 2 3 4 5; do
+    launchctl print "system/$BUNDLE_ID.daemon" >/dev/null 2>&1 || break
+    sleep 1
+done
+launchctl enable "system/$BUNDLE_ID.daemon"
+if ! launchctl bootstrap system "$DAEMON_PLIST"; then
+    echo "!! bootstrap failed; launchd says:" >&2
+    log show --last 2m --style compact --predicate "eventMessage CONTAINS \"$BUNDLE_ID\"" 2>/dev/null | tail -15 >&2
+    exit 1
+fi
 
 if [ -f "$LIBEXEC/FamilyTimerAgent" ]; then
     echo "== installing the LaunchAgent"
@@ -87,15 +106,6 @@ EOF
         launchctl bootout "gui/$console_uid/$BUNDLE_ID.agent" 2>/dev/null || true
         launchctl bootstrap "gui/$console_uid" "$AGENT_PLIST" 2>/dev/null || true
     fi
-fi
-
-if [ ! -f "$SUDOERS" ]; then
-    echo "== installing the sudoers rule for $ADMIN"
-    tmp=$(mktemp)
-    echo "$ADMIN ALL=(root) NOPASSWD: $LIBEXEC/update" > "$tmp"
-    visudo -cf "$tmp" >/dev/null
-    install -o root -g wheel -m 440 "$tmp" "$SUDOERS"
-    rm -f "$tmp"
 fi
 
 sleep 2
