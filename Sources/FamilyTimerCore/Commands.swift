@@ -60,6 +60,7 @@ public enum Command: Equatable {
     case status
     case extra(seconds: Int)
     case studio(seconds: Int)
+    case minecraft(seconds: Int)
     case lock
     case unlock
     case help
@@ -80,7 +81,7 @@ public func parseAddressedCommand(_ text: String) -> (result: Result<Command, Co
     var word = first.lowercased()
     if let at = word.firstIndex(of: "@") { word = String(word[..<at]) }
     let rest = Array(parts.dropFirst())
-    if word == "/extra" || word == "/studio" {
+    if word == "/extra" || word == "/studio" || word == "/minecraft" || word == "/mc" {
         guard rest.count >= 2 else { return (parseCommand(text), nil) }
         if parseDuration(rest[0]) == nil && parseDuration(rest[1]) != nil {
             return (parseCommand(first + " " + rest[1]), rest[0])
@@ -115,7 +116,7 @@ public func parseCommand(_ text: String) -> Result<Command, CommandError> {
         return .success(.apps(days: 7))
     case "/oggi", "/today":
         return .success(.apps(days: 1))
-    case "/extra", "/studio":
+    case "/extra", "/studio", "/minecraft", "/mc":
         guard parts.count >= 2 else {
             return .failure(.missingDuration(word))
         }
@@ -125,8 +126,10 @@ public func parseCommand(_ text: String) -> Result<Command, CommandError> {
         }
         if word == "/extra" {
             return .success(.extra(seconds: seconds))
-        } else {
+        } else if word == "/studio" {
             return .success(.studio(seconds: seconds))
+        } else {
+            return .success(.minecraft(seconds: seconds))
         }
     default:
         return .failure(.unknown(word))

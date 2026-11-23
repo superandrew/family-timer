@@ -16,6 +16,10 @@ public struct Config: Equatable {
     public var childUser: String
     public var weekdayLimit: Int
     public var weekendLimit: Int
+    /// Seconds of Minecraft per weekday; 0 = no Minecraft limit.
+    public var minecraftLimit: Int
+    /// Seconds of Minecraft per weekend day; 0 = no Minecraft limit.
+    public var weekendMinecraftLimit: Int
     public var extensionTime: Int
     public var idleThreshold: Int
     public var graceTime: Int
@@ -44,6 +48,8 @@ public struct Config: Equatable {
         childUser: String,
         weekdayLimit: Int = 3600,
         weekendLimit: Int = 3600,
+        minecraftLimit: Int = 0,
+        weekendMinecraftLimit: Int = 0,
         extensionTime: Int = 1800,
         idleThreshold: Int = 120,
         graceTime: Int = 300,
@@ -59,6 +65,8 @@ public struct Config: Equatable {
         self.childUser = childUser
         self.weekdayLimit = weekdayLimit
         self.weekendLimit = weekendLimit
+        self.minecraftLimit = minecraftLimit
+        self.weekendMinecraftLimit = weekendMinecraftLimit
         self.extensionTime = extensionTime
         self.idleThreshold = idleThreshold
         self.graceTime = graceTime
@@ -76,6 +84,8 @@ public struct Config: Equatable {
         var childUser: String?
         var weekdayLimit = 3600
         var weekendLimit = 3600
+        var minecraftLimit = 0
+        var weekendMinecraftLimit = 0
         var extensionTime = 1800
         var idleThreshold = 120
         var graceTime = 300
@@ -120,6 +130,16 @@ public struct Config: Equatable {
                     throw ConfigError.invalidNumber(key: key, value: value)
                 }
                 weekendLimit = v
+            case "MINECRAFT_LIMIT":
+                guard let v = Int(value), v >= 0 else {
+                    throw ConfigError.invalidNumber(key: key, value: value)
+                }
+                minecraftLimit = v
+            case "WEEKEND_MINECRAFT_LIMIT":
+                guard let v = Int(value), v >= 0 else {
+                    throw ConfigError.invalidNumber(key: key, value: value)
+                }
+                weekendMinecraftLimit = v
             case "EXTENSION_TIME":
                 guard let v = Int(value), v > 0 else {
                     throw ConfigError.invalidNumber(key: key, value: value)
@@ -184,10 +204,16 @@ public struct Config: Equatable {
             throw ConfigError.missing("CHILD_USER")
         }
 
+        if weekendMinecraftLimit == 0 && minecraftLimit != 0 {
+            weekendMinecraftLimit = minecraftLimit
+        }
+
         return Config(
             childUser: cu,
             weekdayLimit: weekdayLimit,
             weekendLimit: weekendLimit,
+            minecraftLimit: minecraftLimit,
+            weekendMinecraftLimit: weekendMinecraftLimit,
             extensionTime: extensionTime,
             idleThreshold: idleThreshold,
             graceTime: graceTime,

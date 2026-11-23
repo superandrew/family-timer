@@ -6,14 +6,17 @@ public struct DayLedger: Codable, Equatable {
     public var extra: Int
     public var studioUntil: Date?
     public var lockedByParent: Bool
+    public var minecraftExtra: Int?
 
     public init(day: String, used: Int = 0, extra: Int = 0,
-                studioUntil: Date? = nil, lockedByParent: Bool = false) {
+                studioUntil: Date? = nil, lockedByParent: Bool = false,
+                minecraftExtra: Int? = nil) {
         self.day = day
         self.used = used
         self.extra = extra
         self.studioUntil = studioUntil
         self.lockedByParent = lockedByParent
+        self.minecraftExtra = minecraftExtra
     }
 
     public static func dayKey(_ date: Date, calendar: Calendar) -> String {
@@ -23,6 +26,10 @@ public struct DayLedger: Codable, Equatable {
 
     public static func budget(for date: Date, config: Config, calendar: Calendar) -> Int {
         calendar.isDateInWeekend(date) ? config.weekendLimit : config.weekdayLimit
+    }
+
+    public static func minecraftBudget(for date: Date, config: Config, calendar: Calendar) -> Int {
+        calendar.isDateInWeekend(date) ? config.weekendMinecraftLimit : config.minecraftLimit
     }
 
     public static func fresh(for date: Date, calendar: Calendar) -> DayLedger {
@@ -50,6 +57,10 @@ public struct DayLedger: Codable, Equatable {
 
     public mutating func grantExtra(seconds: Int) {
         extra += seconds
+    }
+
+    public mutating func grantMinecraftExtra(seconds: Int) {
+        minecraftExtra = (minecraftExtra ?? 0) + seconds
     }
 
     public mutating func startStudio(seconds: Int, now: Date) {

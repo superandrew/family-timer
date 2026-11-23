@@ -106,6 +106,8 @@ public enum Replies {
                 : t(l, "Unlocked. Remaining: \(remaining).", "Sbloccato. Rimasti: \(remaining).")
         case .apps:
             return ""
+        case .minecraft:
+            return ""
         }
     }
 

@@ -113,6 +113,16 @@ public enum Policy {
         state.ledger.remaining(budget: DayLedger.budget(for: now, config: config, calendar: calendar))
     }
 
+    /// Seconds of Minecraft left today; nil when there is no Minecraft limit.
+    /// `played`: Minecraft seconds already counted today.
+    public static func minecraftRemaining(_ s: PolicyState, played: Int, now: Date,
+                                          config: Config, calendar: Calendar) -> Int? {
+        let budget = DayLedger.minecraftBudget(for: now, config: config, calendar: calendar)
+        if budget == 0 { return nil }
+        if s.ledger.inStudio(at: now) { return 0 }
+        return max(0, budget + (s.ledger.minecraftExtra ?? 0) - played)
+    }
+
     public static func askState(_ s: PolicyState, config: Config, now: Date? = nil,
                                 calendar: Calendar = .current) -> AskState {
         if s.request != nil { return .waiting }
@@ -236,6 +246,8 @@ public enum Policy {
                 s.ledger.startStudio(seconds: seconds, now: now)
                 supersedeRequest(&s, actions: &actions)
                 reopen(&s, now: now, budget: budget, actions: &actions)
+            case let .minecraft(seconds):
+                s.ledger.grantMinecraftExtra(seconds: seconds)
             case .lock:
                 s.ledger.lockedByParent = true
                 supersedeRequest(&s, actions: &actions)
