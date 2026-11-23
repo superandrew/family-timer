@@ -24,7 +24,7 @@ Telegram. Native Swift, no subscription, no cloud service of its own, no network
   With several children, one bot per Mac in the same group, and commands take the child's
   name: `/extra 15m art`.
 - **Usage per app and per site** (in progress): the last 7 days or today, with buttons to sort
-  each app or site into games, study, video or other. Sites need the macOS Accessibility
+  each app or site into games, study, video, coding or other. Sites need the macOS Accessibility
   permission. No rules on categories yet.
 - **Self-healing.** If the menu bar app is switched off in Login Items or quits, the daemon
   starts it again and tells the parents when it cannot. A heartbeat to

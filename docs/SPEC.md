@@ -288,7 +288,7 @@ seen a few weeks of data).
   and, for a browser, to the site (`UsageLog`, host without `www.`). 35 days are kept in
   `usage.json`. Titles are not stored.
 - `/app NAME` shows the last 7 days, `/oggi NAME` today, apps and sites apart. Something not
-  yet classified gets buttons 🎮 games / 📚 study / 📺 video / ▫️ other: under `/app` for the
+  yet classified gets buttons 🎮 games / 📚 study / 📺 video / 💻 coding / ▫️ other: under `/app` for the
   first five above 5 minutes, and once on its own when it passes 10 minutes in total.
 - Trust: the report comes from the child's session, so a child who writes to the socket can
   lie about it. Good enough to look at; rules that close apps will check the process list.

@@ -44,9 +44,11 @@ struct TelegramClient {
     func send(_ text: String, buttons: [(text: String, data: String)] = []) async throws -> Int64 {
         var params: [String: Any] = ["chat_id": chatID, "text": text]
         if !buttons.isEmpty {
-            params["reply_markup"] = ["inline_keyboard": [buttons.map {
-                ["text": $0.text, "callback_data": $0.data]
-            }]]
+            // At most 3 per row: 5 category buttons on one row get cut on a phone.
+            let cells = buttons.map { ["text": $0.text, "callback_data": $0.data] }
+            params["reply_markup"] = ["inline_keyboard": stride(from: 0, to: cells.count, by: 3).map {
+                Array(cells[$0..<min($0 + 3, cells.count)])
+            }]
         }
         let data = try await call("sendMessage", params)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
