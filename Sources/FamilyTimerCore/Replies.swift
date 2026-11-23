@@ -231,7 +231,8 @@ public enum Replies {
         if !apps.isEmpty {
             lines.append(t(l, "Apps:", "App:"))
             for e in apps {
-                lines.append("\(categoryEmoji(categories[e.key])) \(e.name) \(duration(e.seconds))")
+                let emoji = UsageLog.isBrowser(e.key) ? "🌐" : categoryEmoji(categories[e.key])
+                lines.append("\(emoji) \(e.name) \(duration(e.seconds))")
             }
         }
         if !sites.isEmpty {

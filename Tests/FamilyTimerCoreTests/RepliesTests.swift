@@ -109,7 +109,7 @@ final class RepliesTests: XCTestCase {
 
         XCTAssertEqual(
             Replies.usage(entries, categories: categories, child: "arthur", days: 7, limit: 10, .it),
-            "arthur, ultimi 7 giorni:\nApp:\n🎮 Minecraft 4h 10m\n❓ Safari 1h 15m\nSiti:\n❓ youtube.com 1h 10m"
+            "arthur, ultimi 7 giorni:\nApp:\n🎮 Minecraft 4h 10m\n🌐 Safari 1h 15m\nSiti:\n❓ youtube.com 1h 10m"
         )
         XCTAssertEqual(
             Replies.usage(entries, categories: categories, child: "arthur", days: 7, limit: 1, .en),

@@ -86,6 +86,21 @@ final class UsageTests: XCTestCase {
         XCTAssertEqual(entries.first?.key, "app:com.apple.Safari")
     }
 
+    func testBrowsers() {
+        XCTAssertTrue(UsageLog.isBrowser("app:com.google.Chrome"))
+        XCTAssertTrue(UsageLog.isBrowser("app:com.apple.Safari"))
+        XCTAssertFalse(UsageLog.isBrowser("app:com.mojang.minecraft"))
+        XCTAssertFalse(UsageLog.isBrowser("site:google.com"))
+        XCTAssertFalse(UsageLog.isBrowser("com.google.Chrome"))
+
+        var log = UsageLog()
+        log.categories["app:com.mojang.minecraft"] = .games
+        XCTAssertFalse(log.needsCategory("app:com.mojang.minecraft"))
+        XCTAssertFalse(log.needsCategory("app:com.google.Chrome"))
+        XCTAssertTrue(log.needsCategory("app:com.apple.Terminal"))
+        XCTAssertTrue(log.needsCategory("site:github.com"))
+    }
+
     func testJsonRoundTrip() {
         var log = UsageLog()
         let minecraft = Frontmost(bundleID: "com.mojang.minecraft", name: "Minecraft")

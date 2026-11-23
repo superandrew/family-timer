@@ -92,6 +92,25 @@ public struct UsageLog: Codable, Equatable {
         return key.hasPrefix("site:")
     }
 
+    /// Bundle ids of the browsers whose page the agent reads.
+    public static let browsers: Set<String> = [
+        "com.apple.Safari", "com.apple.SafariTechnologyPreview", "com.google.Chrome",
+        "org.mozilla.firefox", "com.microsoft.edgemac", "com.brave.Browser",
+        "company.thebrowser.Browser", "com.operasoftware.Opera", "com.vivaldi.Vivaldi",
+    ]
+
+    /// True for the app key of a browser ("app:com.google.Chrome").
+    public static func isBrowser(_ key: String) -> Bool {
+        guard key.hasPrefix("app:") else { return false }
+        let bundleID = String(key.dropFirst(4))
+        return browsers.contains(bundleID)
+    }
+
+    /// True when the parents should be asked to classify `key`: not a browser, not classified yet.
+    public func needsCategory(_ key: String) -> Bool {
+        return !UsageLog.isBrowser(key) && categories[key] == nil
+    }
+
     public mutating func add(_ frontmost: Frontmost, seconds: Int, day: String) {
         if seconds <= 0 { return }
 
