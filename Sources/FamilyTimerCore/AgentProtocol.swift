@@ -51,11 +51,14 @@ public struct DaemonMessage: Codable, Equatable {
     public var app: String?
     /// `close`.
     public var reason: BlockReason?
+    /// `state`: lines of the menu.
+    public var menu: [String]?
 
     public init(type: DaemonMessageType, remaining: Int? = nil, phase: Phase? = nil,
                 graceRemaining: Int? = nil, dryRun: Bool? = nil, language: Language? = nil,
                 approved: Bool? = nil, askState: AskState? = nil,
-                minecraftRemaining: Int? = nil, app: String? = nil, reason: BlockReason? = nil) {
+                minecraftRemaining: Int? = nil, app: String? = nil, reason: BlockReason? = nil,
+                menu: [String]? = nil) {
         self.type = type
         self.remaining = remaining
         self.phase = phase
@@ -67,6 +70,7 @@ public struct DaemonMessage: Codable, Equatable {
         self.minecraftRemaining = minecraftRemaining
         self.app = app
         self.reason = reason
+        self.menu = menu
     }
 
     /// The message for a policy action, or nil when the action is not for the agent.

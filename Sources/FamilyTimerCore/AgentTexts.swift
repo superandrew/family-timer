@@ -10,16 +10,62 @@ public enum AgentTexts {
     }
 
     /// Menu bar title.
-    public static func menuTitle(remaining: Int, phase: Phase, graceRemaining: Int?, _ l: Language) -> String {
+    public static func menuTitle(remaining: Int, phase: Phase, graceRemaining: Int?, _ l: Language,
+                                 minecraftRemaining: Int? = nil) -> String {
         switch phase {
         case .open:
-            return "⏱ " + Replies.duration(remaining + 59)
+            var title = "⏱ " + Replies.duration(remaining + 59)
+            if let mc = minecraftRemaining {
+                title += " ⛏ " + Replies.duration(mc + 59)
+            }
+            return title
         case .grace, .pending:
             return "⏱ " + t(l, "time over", "tempo finito")
                 + (graceRemaining.map { " (\(Replies.duration($0 + 59)))" } ?? "")
         case .locked:
             return "⏱ " + t(l, "locked", "bloccato")
         }
+    }
+
+    /// Lines of the menu bar menu: time left, Minecraft left, study time, today's top apps.
+    public static func menuLines(_ state: PolicyState, now: Date, config: Config, calendar: Calendar,
+                                 minecraftPlayed: Int?, today: [UsageEntry],
+                                 categories: [String: UsageCategory]) -> [String] {
+        let l = config.language
+        let ledger = state.ledger
+        let budget = DayLedger.budget(for: now, config: config, calendar: calendar)
+        var lines: [String] = []
+
+        let remaining = ledger.remaining(budget: budget)
+        let left = remaining == 0 ? "0m" : Replies.duration(remaining + 59)
+        let total = Replies.duration(budget + ledger.extra)
+        let used = Replies.duration(ledger.used)
+        lines.append(t(l, "Computer: \(left) left (used \(used) of \(total))",
+                       "Computer: restano \(left) (usati \(used) su \(total))"))
+
+        if let played = minecraftPlayed,
+           let mcLeft = Policy.minecraftRemaining(state, played: played, now: now, config: config, calendar: calendar) {
+            let mcTotal = DayLedger.minecraftBudget(for: now, config: config, calendar: calendar) + (ledger.minecraftExtra ?? 0)
+            let mcLeftStr = mcLeft == 0 ? "0m" : Replies.duration(mcLeft + 59)
+            lines.append(t(l, "Minecraft: \(mcLeftStr) left (played \(Replies.duration(played)) of \(Replies.duration(mcTotal)))",
+                           "Minecraft: restano \(mcLeftStr) (giocati \(Replies.duration(played)) su \(Replies.duration(mcTotal)))"))
+        }
+
+        if ledger.inStudio(at: now), let until = ledger.studioUntil {
+            let c = Replies.clock(until, calendar: calendar)
+            lines.append(t(l, "Study time until \(c)", "Studio fino alle \(c)"))
+        }
+
+        let apps = today.filter { !UsageLog.isSite($0.key) && $0.seconds >= 60 }.prefix(3)
+        if !apps.isEmpty {
+            lines.append(t(l, "Today:", "Oggi:"))
+            for e in apps {
+                let emoji = UsageLog.isBrowser(e.key) ? "🌐" : Replies.categoryEmoji(categories[e.key])
+                lines.append("\(emoji) \(e.name) \(Replies.duration(e.seconds))")
+            }
+        }
+
+        return lines
     }
 
     /// Warning shown when `minutes` are left (5 and 1).
