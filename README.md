@@ -14,8 +14,9 @@ Telegram. Native Swift, no subscription, no cloud service of its own, no network
 - **Ask for more time.** When the time is over the child gets 5 minutes of grace and a window
   with *Ask for more time*. The request reaches the parents' Telegram group with **Approve**
   and **Deny** buttons. The child can ask again from the lock screen: after unlocking, a small
-  window offers the button for 15 seconds before the screen locks again. After a *no*, no
-  more requests until midnight.
+  window offers the button for 15 seconds before the screen locks again. The child can also ask
+  in the last 15 minutes, before the time is over. After a *no*, no more requests until
+  midnight.
 - **Real lock.** When the time is over the screen locks, and locks again within seconds if the
   child unlocks it. If the menu bar app is missing or killed, the root daemon notices that the
   screen stays unlocked and logs the child out.

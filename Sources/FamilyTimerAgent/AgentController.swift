@@ -88,8 +88,15 @@ final class AgentController: NSObject {
             if let phase = message.phase { setPhase(phase) }
             if phase == .open, let previous, let now = remaining {
                 for minutes in [5, 1] where previous > minutes * 60 && now <= minutes * 60 && now > 0 {
-                    notice.show(AgentTexts.warning(minutes: minutes, language), icon: "⏳",
-                                primary: AgentTexts.okButton(language))
+                    // In the last 15 minutes the child can already ask (SPEC 4.2).
+                    if askState == .available {
+                        notice.show(AgentTexts.warning(minutes: minutes, language), icon: "⏳",
+                                    primary: AgentTexts.okButton(language),
+                                    secondary: AgentTexts.askButton(language), { [weak self] in self?.ask() })
+                    } else {
+                        notice.show(AgentTexts.warning(minutes: minutes, language), icon: "⏳",
+                                    primary: AgentTexts.okButton(language))
+                    }
                 }
             }
             if phase == .grace || phase == .pending {
@@ -102,6 +109,7 @@ final class AgentController: NSObject {
             showExpired()
         case .requestResult:
             let approved = message.approved ?? false
+            if phase == .open { asked = false }  // an early request: a later one is possible
             notice.show(AgentTexts.result(approved: approved, language), icon: approved ? "✅" : "❌",
                         primary: AgentTexts.okButton(language))
         case .lock:
@@ -135,16 +143,20 @@ final class AgentController: NSObject {
         expiredShown = true
         if asked || phase == .pending {
             notice.show(AgentTexts.waiting(language), icon: "✉️", primary: AgentTexts.okButton(language))
-        } else {
+        } else if askState == .available {
             notice.show(AgentTexts.expired(graceRemaining: graceRemaining, language), icon: "⏰",
                         primary: AgentTexts.okButton(language),
                         secondary: AgentTexts.askButton(language), { [weak self] in self?.ask() })
+        } else {
+            notice.show(AgentTexts.expired(graceRemaining: graceRemaining, language), icon: "⏰",
+                        primary: AgentTexts.okButton(language))
         }
     }
 
     private func ask() {
-        guard !asked else { return }
+        guard askState == .available, !asked || phase == .open else { return }
         asked = true
+        askState = .waiting
         connection.send(AgentMessage.requestTime)
         notice.show(AgentTexts.waiting(language), icon: "✉️", primary: AgentTexts.okButton(language))
         refreshMenu()
@@ -165,7 +177,7 @@ final class AgentController: NSObject {
         statusItem.button?.title = title
         statusLine.title = title
         askItem.title = AgentTexts.askButton(language)
-        askItem.isEnabled = (phase == .grace && !asked) || (phase == .locked && askState == .available)
+        askItem.isEnabled = askState == .available && !(phase == .grace && asked)
     }
 
     // MARK: lock loop

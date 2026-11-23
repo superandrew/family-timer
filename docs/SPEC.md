@@ -123,6 +123,11 @@ Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
 - The child can ask in `grace` and, since task 012, in `locked`: when the child unlocks the
   screen, the agent shows a small window for 15 s with "Ask for more time", then locks again
   (5 s with nothing to ask; the window at most once a minute). One request at a time.
+- Since task 018 the child can also ask in `open` during the last 15 minutes
+  (`Policy.askEarlyWindow`), from the menu or the 5- and 1-minute warnings; not during a
+  studio window. The parents' message says how much is left. Approved: the extra is added
+  and nothing else changes. If the time runs out while waiting, the phase goes to `pending`
+  (or `grace` if the request already timed out).
   After a Deny no request until midnight or a parent's `/extra`, `/studio`, `/unlock`.
   No request under `/lock`. Without a Telegram token the request is refused at once.
 - A request survives the lock, so a late Approve works; a late Deny changes nothing.
@@ -237,6 +242,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 015 | L | Done. Usage category coding |
 | 016 | L | Done. Browsers are containers: 🌐, never classified |
 | 017 | L | Done. A login while locked gets 90 s before the logout fallback |
+| 018 | L | Done. Ask for more time in the last 15 minutes |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 

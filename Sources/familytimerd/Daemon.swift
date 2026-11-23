@@ -198,7 +198,7 @@ actor Daemon {
             graceRemaining: state.graceUntil.map { max(0, Int($0.timeIntervalSince(now))) },
             dryRun: dryRun,
             language: config.language,
-            askState: Policy.askState(state, config: config)))
+            askState: Policy.askState(state, config: config, now: now, calendar: calendar)))
     }
 
     func agentMessage(_ message: AgentMessage) async {
@@ -241,7 +241,11 @@ actor Daemon {
             Log.info("agent <- \(action)")
             await agent.send(action)
         case let .sendTimeRequest(requestID, seconds):
-            let text = Replies.request(child: config.displayName, seconds: seconds, config.language)
+            // Asked before the end (SPEC 4.2): the parents see how much is left.
+            let left = state.phase == .open
+                ? Policy.remaining(state, now: Date(), config: config, calendar: calendar) : nil
+            let text = Replies.request(child: config.displayName, seconds: seconds, remaining: left,
+                                       config.language)
             do {
                 let id = try await telegram?.send(text, buttons: [
                     (Replies.approveButton(config.language), "approve:\(requestID)"),
