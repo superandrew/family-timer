@@ -55,6 +55,10 @@ final class RepliesTests: XCTestCase {
                        "/extra needs a duration, for example /extra 30 or /extra 1h30.")
         XCTAssertEqual(Replies.request(child: "arthur", seconds: 1800, .en),
                        "⏰ arthur has used today's time and asks for 30m more.")
+        XCTAssertEqual(Replies.request(child: "arthur", seconds: 1800, remaining: 240, .en),
+                       "⏰ arthur has 4m left and asks for 30m more.")
+        XCTAssertEqual(Replies.request(child: "arthur", seconds: 1800, remaining: 240, .it),
+                       "⏰ arthur ha ancora 4m e chiede altri 30m.")
         XCTAssertEqual(Replies.decided("Q", approved: true, by: "Ann", .en), "Q\n✅ Approved by Ann.")
         XCTAssertEqual(Replies.decided("Q", approved: false, by: "", .en), "Q\n❌ Denied.")
     }

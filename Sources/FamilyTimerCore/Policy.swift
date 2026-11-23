@@ -104,17 +104,28 @@ public enum Policy {
     /// up to 60 s to be restarted by the daemon, then it has to lock.
     public static let loginGrace: TimeInterval = 90
 
+    /// In `open`, the child can ask for more time when this many seconds or fewer are left.
+    public static let askEarlyWindow = 900
+
     /// Remaining seconds of today, for `/status` and the agent's countdown.
     public static func remaining(_ state: PolicyState, now: Date, config: Config,
                                  calendar: Calendar) -> Int {
         state.ledger.remaining(budget: DayLedger.budget(for: now, config: config, calendar: calendar))
     }
 
-    public static func askState(_ s: PolicyState, config: Config) -> AskState {
+    public static func askState(_ s: PolicyState, config: Config, now: Date? = nil,
+                                calendar: Calendar = .current) -> AskState {
         if s.request != nil { return .waiting }
         if s.askDenied == true { return .denied }
         if config.telegramBotToken.isEmpty || s.ledger.lockedByParent { return .unavailable }
-        return s.phase == .grace || s.phase == .locked ? .available : .unavailable
+        if s.phase == .grace || s.phase == .locked { return .available }
+        if s.phase == .open, let now {
+            let budget = DayLedger.budget(for: now, config: config, calendar: calendar)
+            if s.ledger.remaining(budget: budget) <= askEarlyWindow && !s.ledger.inStudio(at: now) {
+                return .available
+            }
+        }
+        return .unavailable
     }
 
     public static func reduce(_ state: PolicyState, _ event: PolicyEvent, now: Date,
@@ -145,7 +156,9 @@ public enum Policy {
             switch s.phase {
             case .open:
                 if s.ledger.remaining(budget: budget) == 0 && !s.ledger.inStudio(at: now) {
-                    s.phase = .grace
+                    // Still waiting for an early request: pending. A request already timed out
+                    // does not cost the grace period.
+                    s.phase = (s.request.map { now < $0.deadline } ?? false) ? .pending : .grace
                     s.graceUntil = now.addingTimeInterval(TimeInterval(config.graceTime))
                     actions.append(.showExpiredDialog)
                 }
@@ -178,7 +191,10 @@ public enum Policy {
             }
 
         case let .askForTime(requestID):
-            guard s.phase == .grace || s.phase == .locked, s.request == nil,
+            let early = s.phase == .open
+                && s.ledger.remaining(budget: budget) <= askEarlyWindow
+                && !s.ledger.inStudio(at: now)
+            guard s.phase == .grace || s.phase == .locked || early, s.request == nil,
                   s.askDenied != true, !s.ledger.lockedByParent else { break }
             if config.telegramBotToken.isEmpty {
                 actions.append(.requestResult(requestID: requestID, approved: false))

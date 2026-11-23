@@ -145,9 +145,13 @@ public enum Replies {
             """)
     }
 
-    public static func request(child: String, seconds: Int, _ l: Language) -> String {
-        t(l, "⏰ \(child) has used today's time and asks for \(duration(seconds)) more.",
-             "⏰ \(child) ha finito il tempo di oggi e chiede altri \(duration(seconds)).")
+    public static func request(child: String, seconds: Int, remaining: Int? = nil, _ l: Language) -> String {
+        if let remaining, remaining > 0 {
+            return t(l, "⏰ \(child) has \(duration(remaining)) left and asks for \(duration(seconds)) more.",
+                     "⏰ \(child) ha ancora \(duration(remaining)) e chiede altri \(duration(seconds)).")
+        }
+        return t(l, "⏰ \(child) has used today's time and asks for \(duration(seconds)) more.",
+                 "⏰ \(child) ha finito il tempo di oggi e chiede altri \(duration(seconds)).")
     }
 
     public static func approveButton(_ l: Language) -> String { t(l, "✅ Approve", "✅ Approva") }

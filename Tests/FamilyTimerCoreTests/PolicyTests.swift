@@ -367,6 +367,63 @@ final class PolicyTests: XCTestCase {
         XCTAssertEqual(try JSONDecoder().decode(PolicyState.self, from: data), state)
     }
 
+    // MARK: asking early
+
+    func testAskEarlyInTheLastMinutes() {
+        let (s, actions) = reduce(state(used: 3000), .askForTime(requestID: "e1"), at(9, 0))
+        XCTAssertEqual(s.phase, .open)
+        XCTAssertEqual(s.request, PendingRequest(id: "e1", seconds: 1800, deadline: at(9, 10)))
+        XCTAssertEqual(actions, [.sendTimeRequest(requestID: "e1", seconds: 1800)])
+    }
+
+    func testNoAskEarlyWithMoreThan15Minutes() {
+        let (s, actions) = reduce(state(used: 2000), .askForTime(requestID: "e1"), at(9, 0))
+        XCTAssertEqual(s, state(used: 2000))
+        XCTAssertEqual(actions, [])
+    }
+
+    func testApproveEarlyAddsTime() {
+        let (s1, _) = reduce(state(used: 3000), .askForTime(requestID: "e1"), at(9, 0))
+        let (s, actions) = reduce(s1, .answer(requestID: "e1", approved: true), at(9, 1))
+        XCTAssertEqual(s.phase, .open)
+        XCTAssertEqual(s.ledger.extra, 1800)
+        XCTAssertNil(s.request)
+        XCTAssertEqual(actions, [.requestResult(requestID: "e1", approved: true)])
+    }
+
+    func testDenyEarlyStaysOpenAndBlocks() {
+        let (s1, _) = reduce(state(used: 3000), .askForTime(requestID: "e1"), at(9, 0))
+        let (s, actions) = reduce(s1, .answer(requestID: "e1", approved: false), at(9, 1))
+        XCTAssertEqual(s.phase, .open)
+        XCTAssertEqual(s.askDenied, true)
+        XCTAssertEqual(actions, [.requestResult(requestID: "e1", approved: false)])
+    }
+
+    func testRunningOutWhileWaitingGoesToPending() {
+        let (s1, _) = reduce(state(used: 3600 - 15), .askForTime(requestID: "e2"), at(9, 0))
+        let (s, actions) = reduce(s1, .tick(seconds: 15, active: true), at(9, 0, 15))
+        XCTAssertEqual(s.phase, .pending)
+        XCTAssertEqual(s.graceUntil, at(9, 5, 15))
+        XCTAssertEqual(actions, [.showExpiredDialog])
+    }
+
+    func testTimedOutEarlyRequestKeepsGrace() {
+        let (s1, _) = reduce(state(used: 3000), .askForTime(requestID: "e3"), at(9, 0))
+        // No answer by 9:10; the time runs out at 9:20.
+        var s = s1
+        s.ledger = DayLedger(day: "2026-11-23", used: 3600 - 15)
+        let (s2, actions) = reduce(s, .tick(seconds: 15, active: true), at(9, 20))
+        XCTAssertEqual(s2.phase, .grace)
+        XCTAssertEqual(s2.request?.id, "e3")
+        XCTAssertEqual(actions, [.showExpiredDialog])
+    }
+
+    func testAskStateEarly() {
+        XCTAssertEqual(Policy.askState(state(used: 3000), config: config, now: at(9, 0), calendar: calendar), .available)
+        XCTAssertEqual(Policy.askState(state(used: 2000), config: config, now: at(9, 0), calendar: calendar), .unavailable)
+        XCTAssertEqual(Policy.askState(state(used: 3000), config: config, calendar: calendar), .unavailable)
+    }
+
     // MARK: midnight
 
     func testNewDayResetsEverything() {
