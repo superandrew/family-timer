@@ -135,3 +135,27 @@ public func parseCommand(_ text: String) -> Result<Command, CommandError> {
         return .failure(.unknown(word))
     }
 }
+
+/// A press on a request button: `approve:<id>`, `approve:<id>:<seconds>` or `deny:<id>`.
+public struct AnswerData: Equatable {
+    public var requestID: String
+    public var approved: Bool
+    public var seconds: Int?
+
+    public init(requestID: String, approved: Bool, seconds: Int? = nil) {
+        self.requestID = requestID
+        self.approved = approved
+        self.seconds = seconds
+    }
+}
+
+public func parseAnswerData(_ data: String) -> AnswerData? {
+    let parts = data.split(separator: ":", omittingEmptySubsequences: false).map(String.init)
+    guard parts.count == 2 || parts.count == 3, !parts[1].isEmpty else { return nil }
+    guard parts[0] == "approve" || parts[0] == "deny" else { return nil }
+    if parts.count == 2 {
+        return AnswerData(requestID: parts[1], approved: parts[0] == "approve")
+    }
+    guard parts[0] == "approve", let seconds = Int(parts[2]), seconds > 0 else { return nil }
+    return AnswerData(requestID: parts[1], approved: true, seconds: seconds)
+}

@@ -60,7 +60,8 @@ public enum PolicyEvent: Equatable {
     /// The child pressed "Ask for more time". `requestID` is made by the daemon.
     case askForTime(requestID: String)
     /// A parent pressed Approve or Deny (already checked with `isFromParent`).
-    case answer(requestID: String, approved: Bool)
+    /// `seconds`: the amount the parent chose; nil = the request's own amount.
+    case answer(requestID: String, approved: Bool, seconds: Int? = nil)
     /// A parent command (already checked with `isFromParent`).
     case command(Command)
     /// The agent reports that the screen is locked.
@@ -218,12 +219,12 @@ public enum Policy {
             }
             actions.append(.sendTimeRequest(requestID: requestID, seconds: config.extensionTime))
 
-        case let .answer(requestID, approved):
+        case let .answer(requestID, approved, seconds):
             guard let request = s.request, request.id == requestID else { break }
             s.request = nil
             actions.append(.requestResult(requestID: requestID, approved: approved))
             if approved {
-                s.ledger.grantExtra(seconds: request.seconds)
+                s.ledger.grantExtra(seconds: seconds ?? request.seconds)
                 reopen(&s, now: now, budget: budget, actions: &actions)
             } else {
                 s.askDenied = true

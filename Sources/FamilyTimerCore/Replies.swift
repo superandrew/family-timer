@@ -177,8 +177,21 @@ public enum Replies {
     public static func approveButton(_ l: Language) -> String { t(l, "✅ Approve", "✅ Approva") }
     public static func denyButton(_ l: Language) -> String { t(l, "❌ Deny", "❌ Nega") }
 
-    public static func decided(_ request: String, approved: Bool, by name: String, _ l: Language) -> String {
-        let outcome = approved ? t(l, "✅ Approved", "✅ Approvato") : t(l, "❌ Denied", "❌ Negato")
+    /// The amounts offered on a time request.
+    public static let approveChoices = [120, 300, 1800, 3600]
+
+    /// `"✅ 5m"`, `"✅ 1h"`.
+    public static func approveChoiceButton(seconds: Int) -> String {
+        seconds % 3600 == 0 ? "✅ \(seconds / 3600)h" : "✅ " + duration(seconds)
+    }
+
+    public static func decided(_ request: String, approved: Bool, by name: String, _ l: Language, seconds: Int? = nil) -> String {
+        let outcome: String
+        if approved, let seconds {
+            outcome = t(l, "✅ Approved (+\(duration(seconds)))", "✅ Approvato (+\(duration(seconds)))")
+        } else {
+            outcome = approved ? t(l, "✅ Approved", "✅ Approvato") : t(l, "❌ Denied", "❌ Negato")
+        }
         let who = name.isEmpty ? "" : t(l, " by \(name)", " da \(name)")
         return request + "\n" + outcome + who + "."
     }
