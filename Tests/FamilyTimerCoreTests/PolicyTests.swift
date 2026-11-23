@@ -414,6 +414,53 @@ final class PolicyTests: XCTestCase {
         XCTAssertEqual(actions, [])
     }
 
+    func testLoginWhileLockedWaitsBeforeLogout() {
+        let locked = lockedWithRequest()
+        let (s1, a1) = reduce(locked, .childLoggedIn, at(11, 0))
+        XCTAssertEqual(s1.lockSentAt, at(11, 1))
+        XCTAssertNil(s1.lockConfirmedAt)
+        XCTAssertEqual(a1, [])
+
+        let (s2, a2) = reduce(s1, .tick(seconds: 15, active: true), at(11, 0, 30))
+        XCTAssertEqual(a2, [])
+
+        let (s3, a3) = reduce(s2, .tick(seconds: 15, active: true), at(11, 1, 15))
+        XCTAssertEqual(a3, [])
+
+        let (s4, a4) = reduce(s3, .tick(seconds: 15, active: true), at(11, 1, 30))
+        XCTAssertEqual(a4, [.logout])
+    }
+
+    func testAgentConnectedRestartsTheLockWindow() {
+        let locked = lockedWithRequest()
+        let (s1, a1) = reduce(locked, .agentConnected, at(11, 0))
+        XCTAssertEqual(s1.lockSentAt, at(11, 0))
+        XCTAssertEqual(a1, [])
+
+        let (s2, a2) = reduce(s1, .tick(seconds: 15, active: true), at(11, 0, 15))
+        XCTAssertEqual(a2, [])
+
+        let (s3, a3) = reduce(s2, .tick(seconds: 15, active: true), at(11, 0, 30))
+        XCTAssertEqual(a3, [.logout])
+    }
+
+    func testAgentConnectedKeepsTheLoginGrace() {
+        let locked = lockedWithRequest()
+        let (s1, _) = reduce(locked, .childLoggedIn, at(11, 0))
+        let (s2, _) = reduce(s1, .agentConnected, at(11, 0, 10))
+        XCTAssertEqual(s2.lockSentAt, at(11, 1))
+    }
+
+    func testLoginEventsOutsideLockedAreIgnored() {
+        let (s1, a1) = reduce(state(), .childLoggedIn, at(9, 0))
+        XCTAssertEqual(s1, state())
+        XCTAssertEqual(a1, [])
+
+        let (s2, a2) = reduce(state(), .agentConnected, at(9, 0))
+        XCTAssertEqual(s2, state())
+        XCTAssertEqual(a2, [])
+    }
+
     // MARK: persistence
 
     func testCodableRoundTrip() throws {

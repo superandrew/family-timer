@@ -65,6 +65,10 @@ public enum PolicyEvent: Equatable {
     case command(Command)
     /// The agent reports that the screen is locked.
     case lockConfirmed
+    /// The child's session has just appeared at the console (login, fast user switch).
+    case childLoggedIn
+    /// The agent connected to the daemon (its `hello`).
+    case agentConnected
 }
 
 public enum PolicyAction: Equatable {
@@ -95,6 +99,10 @@ public enum AskState: String, Codable, Equatable {
 public enum Policy {
     /// Seconds the agent has to confirm a lock before the daemon logs the child out.
     public static let lockConfirmTimeout: TimeInterval = 30
+
+    /// After a login while locked, seconds before the logout fallback: the agent may need
+    /// up to 60 s to be restarted by the daemon, then it has to lock.
+    public static let loginGrace: TimeInterval = 90
 
     /// Remaining seconds of today, for `/status` and the agent's countdown.
     public static func remaining(_ state: PolicyState, now: Date, config: Config,
@@ -227,6 +235,19 @@ public enum Policy {
         case .lockConfirmed:
             if s.phase == .locked {
                 s.lockConfirmedAt = now
+            }
+
+        case .childLoggedIn:
+            if s.phase == .locked {
+                s.lockSentAt = now.addingTimeInterval(loginGrace - lockConfirmTimeout)
+                s.lockConfirmedAt = nil
+            }
+
+        case .agentConnected:
+            if s.phase == .locked {
+                if s.lockSentAt == nil || s.lockSentAt! < now {
+                    s.lockSentAt = now
+                }
             }
         }
 

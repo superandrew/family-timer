@@ -68,6 +68,8 @@ The daemon never trusts the agent for anything that matters.
   the console user and active, at least 30 s have passed since the lock (or the last logout),
   and the screen was not seen locked in the last 30 s, the daemon logs the child out
   (`launchctl bootout gui/<uid>`). Killing the agent therefore only makes things worse.
+  A new login while locked (after a restart, for example) waits 90 s instead, the time for
+  the daemon to restart a missing agent; an agent that connects gets 30 s to lock (card 017).
 - The child cannot change the clock, unload the daemon or edit the config: all need admin.
 
 ### 3.2 Locking
@@ -232,6 +234,9 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 012 | L | Done. Ask for more time while locked; a denial holds until midnight |
 | 013 | L | Done. `UsageLog`: seconds per app and per site, per day |
 | 014 | L | Done. `/app`, `/oggi`, usage replies, category buttons; locked reopens when time comes back |
+| 015 | L | Done. Usage category coding |
+| 016 | L | Done. Browsers are containers: 🌐, never classified |
+| 017 | L | Done. A login while locked gets 90 s before the logout fallback |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 

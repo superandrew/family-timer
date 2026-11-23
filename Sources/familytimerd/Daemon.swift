@@ -33,6 +33,8 @@ actor Daemon {
     private var requestMessages: [String: (id: Int64, text: String)] = [:]
     private var lastSummary = Date.distantPast
     private var watch = AgentWatch()
+    /// Whether the child was at the console at the last tick, to notice a new login.
+    private var childWasAtConsole = false
     /// Seconds per app and per site (SPEC 9), and what the agent last said is in front.
     private var usage = UsageLog()
     private var front: (report: AgentReport, at: Date)?
@@ -77,6 +79,12 @@ actor Daemon {
         let console = System.consoleUser()
         let idle = System.hidIdleSeconds() ?? .infinity
         let active = console?.name == config.childUser && idle < Double(config.idleThreshold)
+        let childAtConsole = console?.name == config.childUser
+        if childAtConsole && !childWasAtConsole {
+            // A login while locked: give the agent time to start before the logout fallback.
+            await apply(.childLoggedIn, console: console)
+        }
+        childWasAtConsole = childAtConsole
         if state.phase == .locked, let console, console.name == config.childUser,
            System.isScreenLocked(uid: console.uid) {
             await apply(.lockConfirmed, console: console)
@@ -196,6 +204,7 @@ actor Daemon {
     func agentMessage(_ message: AgentMessage) async {
         switch message {
         case .hello:
+            await apply(.agentConnected, console: System.consoleUser())
             sendState()
         case .heartbeat:
             break
