@@ -113,7 +113,7 @@ actor Daemon {
         let before = keys.map { usage.total(for: $0) }
         usage.add(frontmost, seconds: Self.tickSeconds, day: state.ledger.day)
         try? write(JSONEncoder().encode(usage), to: paths.usage)
-        for (key, old) in zip(keys, before) where usage.categories[key] == nil {
+        for (key, old) in zip(keys, before) where usage.needsCategory(key) {
             let now = usage.total(for: key)
             if old < 600 && now >= 600 {
                 await askCategory(key: key, seconds: now)
@@ -143,7 +143,7 @@ actor Daemon {
         do { _ = try await telegram.send(text) } catch {
             Log.info("reply NOT sent: \(error.localizedDescription)")
         }
-        for entry in entries.filter({ usage.categories[$0.key] == nil && $0.seconds >= 300 }).prefix(5) {
+        for entry in entries.filter({ usage.needsCategory($0.key) && $0.seconds >= 300 }).prefix(5) {
             await askCategory(key: entry.key, seconds: entry.seconds)
         }
     }

@@ -7,11 +7,7 @@ import FamilyTimerCore
 /// (System Settings > Privacy & Security > Accessibility). Without it only the app is known.
 @MainActor
 enum FrontmostReader {
-    static let browsers: Set<String> = [
-        "com.apple.Safari", "com.apple.SafariTechnologyPreview", "com.google.Chrome",
-        "org.mozilla.firefox", "com.microsoft.edgemac", "com.brave.Browser",
-        "company.thebrowser.Browser", "com.operasoftware.Opera", "com.vivaldi.Vivaldi",
-    ]
+    static let browsers = UsageLog.browsers
     /// Chromium builds its accessibility tree only when asked.
     static let chromium: Set<String> = [
         "com.google.Chrome", "com.microsoft.edgemac", "com.brave.Browser",

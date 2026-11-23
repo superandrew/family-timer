@@ -290,6 +290,7 @@ seen a few weeks of data).
 - `/app NAME` shows the last 7 days, `/oggi NAME` today, apps and sites apart. Something not
   yet classified gets buttons 🎮 games / 📚 study / 📺 video / 💻 coding / ▫️ other: under `/app` for the
   first five above 5 minutes, and once on its own when it passes 10 minutes in total.
+  Browsers are never asked about and show 🌐: their time is classified through the sites.
 - Trust: the report comes from the child's session, so a child who writes to the socket can
   lie about it. Good enough to look at; rules that close apps will check the process list.
 - Next: per-category limits (for example games), decided by the parents with the data.
