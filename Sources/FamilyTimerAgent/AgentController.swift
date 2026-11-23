@@ -16,6 +16,9 @@ final class AgentController: NSObject {
     private var phase: Phase = .open
     private var remaining: Int?
     private var minecraftRemaining: Int?
+    /// Lines from the daemon (time, Minecraft, today's apps), shown under the title line.
+    private var menuLines: [String] = []
+    private var lineItems: [NSMenuItem] = []
     private var graceRemaining: Int?
     private var dryRun = false
     private var expiredShown = false
@@ -87,6 +90,7 @@ final class AgentController: NSObject {
             remaining = message.remaining
             let previousMinecraft = minecraftRemaining
             minecraftRemaining = message.minecraftRemaining
+            menuLines = message.menu ?? []
             if let before = previousMinecraft, let now = minecraftRemaining, !running(Blocking.minecraftKey).isEmpty {
                 for minutes in [5, 1] where before > minutes * 60 && now <= minutes * 60 && now > 0 {
                     notice.show(AgentTexts.minecraftWarning(minutes: minutes, language), icon: "⛏️",
@@ -206,11 +210,22 @@ final class AgentController: NSObject {
     }
 
     private func refreshMenu() {
+        // Minecraft's time shows in the title only while the game is running.
+        let minecraft = minecraftRemaining.flatMap { running(Blocking.minecraftKey).isEmpty ? nil : $0 }
         let title = remaining.map {
-            AgentTexts.menuTitle(remaining: $0, phase: phase, graceRemaining: graceRemaining, language)
+            AgentTexts.menuTitle(remaining: $0, phase: phase, graceRemaining: graceRemaining, language,
+                                 minecraftRemaining: minecraft)
         } ?? "⏱"
         statusItem.button?.title = title
         statusLine.title = title
+        if let menu = statusItem.menu, lineItems.map(\.title) != menuLines {
+            lineItems.forEach { menu.removeItem($0) }
+            lineItems = menuLines.map { NSMenuItem(title: $0, action: nil, keyEquivalent: "") }
+            for (i, item) in lineItems.enumerated() {
+                item.isEnabled = true  // no action: shown in normal (not grey) text
+                menu.insertItem(item, at: 1 + i)
+            }
+        }
         askItem.title = AgentTexts.askButton(language)
         askItem.isEnabled = askState == .available && !(phase == .grace && asked)
     }

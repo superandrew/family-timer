@@ -44,7 +44,7 @@ Three parts, one Swift package:
 |---|---|---|
 | `FamilyTimerCore` | library | Pure logic, no system calls: config, durations, commands, day ledger, policy state machine, Telegram JSON. Fully unit-tested. |
 | `familytimerd` | root, LaunchDaemon (`KeepAlive` true) | The authority. Measures active time, keeps state, talks to Telegram and Healthchecks, decides when to lock, logs the child out if the agent is missing. |
-| `FamilyTimerAgent` | the child, LaunchAgent (Aqua sessions only) | The face. Menu bar countdown, warnings, the "Ask for more time" dialog, the screen lock and re-lock. |
+| `FamilyTimerAgent` | the child, LaunchAgent (Aqua sessions only) | The face. Menu bar countdown (with ⛏ Minecraft left while the game runs; the menu lists time left, Minecraft left, study time and today's top 3 apps, lines computed by the daemon), warnings, the "Ask for more time" dialog, the screen lock and re-lock. |
 
 ### 3.1 Trust model
 
@@ -264,6 +264,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 018 | L | Done. Ask for more time in the last 15 minutes |
 | 019 | L | Done. Minecraft limit: config, `/minecraft`, remaining |
 | 020 | L | Done. Which app to close (Minecraft over, study time), texts, protocol |
+| 021 | L | Done. Menu bar: Minecraft in the title, time and usage lines in the menu |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 

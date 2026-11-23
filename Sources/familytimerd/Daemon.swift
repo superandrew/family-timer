@@ -263,7 +263,11 @@ actor Daemon {
             dryRun: dryRun,
             language: config.language,
             askState: Policy.askState(state, config: config, now: now, calendar: calendar),
-            minecraftRemaining: minecraftRemaining(now)))
+            minecraftRemaining: minecraftRemaining(now),
+            menu: AgentTexts.menuLines(state, now: now, config: config, calendar: calendar,
+                                       minecraftPlayed: minecraftPlayed,
+                                       today: usage.entries(from: state.ledger.day, to: state.ledger.day),
+                                       categories: usage.categories)))
     }
 
     func agentMessage(_ message: AgentMessage) async {
