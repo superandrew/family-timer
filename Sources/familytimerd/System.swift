@@ -81,6 +81,21 @@ enum System {
         run("/bin/launchctl", ["bootout", "gui/\(uid)"])
     }
 
+    /// Pids of Minecraft Java run by `user`: a `java` process whose command line names
+    /// Minecraft (official launcher, Prism, MultiMC) or Lunar Client (`~/.lunarclient`).
+    /// Read from the process list, as root: the agent is not trusted for this.
+    static func minecraftPIDs(user: String) -> [pid_t] {
+        guard let pw = getpwnam(user) else { return [] }
+        let uid = pw.pointee.pw_uid
+        return output("/bin/ps", ["-axo", "pid=,uid=,args="]).split(separator: "\n").compactMap { line in
+            let parts = line.split(separator: " ", maxSplits: 2, omittingEmptySubsequences: true)
+            guard parts.count == 3, let pid = pid_t(parts[0]), UInt32(parts[1]) == uid else { return nil }
+            let args = parts[2].lowercased()
+            guard args.contains("/bin/java") else { return nil }
+            return args.contains("minecraft") || args.contains(".lunarclient") ? pid : nil
+        }
+    }
+
     /// Standard output of a command ("" if it cannot run).
     static func output(_ path: String, _ arguments: [String]) -> String {
         let process = Process()

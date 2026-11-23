@@ -15,6 +15,7 @@ final class AgentController: NSObject {
     private var language: Language = .en
     private var phase: Phase = .open
     private var remaining: Int?
+    private var minecraftRemaining: Int?
     private var graceRemaining: Int?
     private var dryRun = false
     private var expiredShown = false
@@ -84,6 +85,14 @@ final class AgentController: NSObject {
             askState = message.askState ?? .unavailable
             let previous = remaining
             remaining = message.remaining
+            let previousMinecraft = minecraftRemaining
+            minecraftRemaining = message.minecraftRemaining
+            if let before = previousMinecraft, let now = minecraftRemaining, !running(Blocking.minecraftKey).isEmpty {
+                for minutes in [5, 1] where before > minutes * 60 && now <= minutes * 60 && now > 0 {
+                    notice.show(AgentTexts.minecraftWarning(minutes: minutes, language), icon: "⛏️",
+                                primary: AgentTexts.okButton(language))
+                }
+            }
             graceRemaining = message.graceRemaining
             if let phase = message.phase { setPhase(phase) }
             if phase == .open, let previous, let now = remaining {
@@ -117,6 +126,32 @@ final class AgentController: NSObject {
             lockLoop(immediate: true)
         case .unlock:
             setPhase(.open)
+        case .close:
+            if let key = message.app, let reason = message.reason { close(key, reason) }
+        }
+    }
+
+    /// Running apps with this usage key ("app:com.mojang.minecraft" also finds Minecraft Java).
+    private func running(_ key: String) -> [NSRunningApplication] {
+        NSWorkspace.shared.runningApplications.filter { app in
+            FrontmostReader.identify(app).map { "app:" + $0.0 } == key
+        }
+    }
+
+    /// Closes an app the daemon blocked (Minecraft over, study time) and says why. Java
+    /// may ignore a polite quit: forced after 5 s. The daemon kills Minecraft by itself if
+    /// it still runs a minute later.
+    private func close(_ key: String, _ reason: BlockReason) {
+        let apps = running(key)
+        guard let first = apps.first else { return }
+        let name = FrontmostReader.identify(first)?.1 ?? key
+        notice.show(AgentTexts.closed(app: name, reason: reason, language),
+                    icon: reason == .studio ? "📚" : "⛏️", primary: AgentTexts.okButton(language))
+        for app in apps {
+            app.terminate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                if !app.isTerminated { app.forceTerminate() }
+            }
         }
     }
 

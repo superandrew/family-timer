@@ -17,6 +17,9 @@ Telegram. Native Swift, no subscription, no cloud service of its own, no network
   window offers the button for 15 seconds before the screen locks again. The child can also ask
   in the last 15 minutes, before the time is over. After a *no*, no more requests until
   midnight.
+- **Minecraft limit and study time.** Minecraft (also under Lunar Client) can have its own
+  daily limit, with warnings and `/minecraft 15m` for more. During `/studio`, Minecraft and
+  the apps the parents classified as games or coding are closed.
 - **Real lock.** When the time is over the screen locks, and locks again within seconds if the
   child unlocks it. If the menu bar app is missing or killed, the root daemon notices that the
   screen stays unlocked and logs the child out.
@@ -76,6 +79,8 @@ One file per child's Mac, `KEY=VALUE`, never committed:
     LANGUAGE=en
     TIME_LIMIT=3600
     WEEKEND_TIME_LIMIT=3600
+    MINECRAFT_LIMIT=2700
+    WEEKEND_MINECRAFT_LIMIT=3600
     TELEGRAM_BOT_TOKEN=123456:ABC...
     TELEGRAM_CHAT_ID=-100123456789
     PARENT_USER_IDS=111111,222222

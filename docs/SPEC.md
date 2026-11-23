@@ -175,6 +175,23 @@ period and grace on Healthchecks.io (suggested: period 5 min, grace 60 min) and 
 an alert means "the Mac is not reporting", not necessarily "tampering". To revisit after
 some weeks of real use.
 
+### 4.5 Closing apps: Minecraft and study time
+
+- Minecraft has its own daily limit (`MINECRAFT_LIMIT`, `WEEKEND_MINECRAFT_LIMIT`) inside
+  the daily budget. Its time is the usage log's: only while Minecraft is in front and the
+  child is active. Minecraft Java has no bundle id (a bare `java`, also under Lunar Client):
+  the agent recognises it by its path and reports it as `com.mojang.minecraft`.
+- During a study window (`/studio`) Minecraft and every app classified 🎮 games or 💻 coding
+  are closed. Browsers and sites are never closed: sites cannot be blocked without network
+  filtering (goal 7).
+- The daemon decides (`Blocking.reason`) at every tick and sends `close` to the agent, at
+  most every 10 s per app. The agent shows why and quits the app (forced after 5 s).
+- Minecraft is also checked by the daemon in the process list, in front or not: if it is
+  still running a minute after `close`, the daemon kills it as root.
+- The agent warns at 5 and 1 minute of Minecraft left, when the game is open.
+- `/minecraft 15m` (or `/mc`) adds Minecraft time for today; `/extra` does not. `/status`
+  shows the Minecraft line. Holidays are not known: weekend means Saturday and Sunday.
+
 ## 5. Configuration
 
 File `/Library/Application Support/FamilyTimer/config`, owner root, mode 0600.
@@ -186,6 +203,8 @@ ignored, so an old minecraft-timer config still loads.
 | `CHILD_USER` | required | short macOS user name of the child |
 | `TIME_LIMIT` | 3600 | weekday budget, seconds |
 | `WEEKEND_TIME_LIMIT` | 3600 | Saturday and Sunday budget, seconds |
+| `MINECRAFT_LIMIT` | 0 | Minecraft seconds per weekday, inside the daily budget; 0 = no limit |
+| `WEEKEND_MINECRAFT_LIMIT` | MINECRAFT_LIMIT | Minecraft seconds on Saturday and Sunday |
 | `EXTENSION_TIME` | 1800 | seconds asked by the "Ask for more time" button |
 | `IDLE_THRESHOLD` | 120 | seconds without input after which time stops counting |
 | `GRACE_TIME` | 300 | seconds the child may continue after the budget ends |
@@ -243,6 +262,8 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 016 | L | Done. Browsers are containers: 🌐, never classified |
 | 017 | L | Done. A login while locked gets 90 s before the logout fallback |
 | 018 | L | Done. Ask for more time in the last 15 minutes |
+| 019 | L | Done. Minecraft limit: config, `/minecraft`, remaining |
+| 020 | L | Done. Which app to close (Minecraft over, study time), texts, protocol |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 

@@ -35,6 +35,10 @@ actor Daemon {
     private var watch = AgentWatch()
     /// Whether the child was at the console at the last tick, to notice a new login.
     private var childWasAtConsole = false
+    /// Minecraft blocked and still running since then: the daemon kills it a minute later.
+    private var minecraftBlockedSince: Date?
+    /// The last `close` sent, to send it again at most every 10 s.
+    private var lastClose: (key: String, at: Date)?
     /// Seconds per app and per site (SPEC 9), and what the agent last said is in front.
     private var usage = UsageLog()
     private var front: (report: AgentReport, at: Date)?
@@ -92,6 +96,7 @@ actor Daemon {
         await apply(.tick(seconds: Self.tickSeconds, active: active), console: console)
         sendState()
         await watchAgent(console: console)
+        enforceBlocks()
         if active && state.phase != .locked {
             await countUsage()
         }
@@ -188,6 +193,65 @@ actor Daemon {
         }
     }
 
+    /// Minecraft seconds counted today (only while in front and in use).
+    private var minecraftPlayed: Int {
+        usage.days.first(where: { $0.day == state.ledger.day })?.seconds[Blocking.minecraftKey] ?? 0
+    }
+
+    private func minecraftRemaining(_ now: Date) -> Int? {
+        Policy.minecraftRemaining(state, played: minecraftPlayed, now: now, config: config, calendar: calendar)
+    }
+
+    /// Minecraft over, or a study window (SPEC 4.5): the agent closes the app in front. For
+    /// Minecraft the daemon also looks at the process list, in front or not, and kills the
+    /// game itself if it is still running a minute after the agent was told.
+    private func enforceBlocks() {
+        let now = Date()
+        let left = minecraftRemaining(now)
+        let inStudio = state.ledger.inStudio(at: now)
+        if let front, now.timeIntervalSince(front.at) < 30, let frontmost = front.report.frontmost {
+            let key = UsageLog.appKey(frontmost.bundleID)
+            if let reason = Blocking.reason(appKey: key, category: usage.categories[key],
+                                            minecraftRemaining: left, inStudio: inStudio) {
+                close(key, reason, now: now)
+            }
+        }
+        guard let reason = Blocking.reason(appKey: Blocking.minecraftKey, category: nil,
+                                           minecraftRemaining: left, inStudio: inStudio) else {
+            minecraftBlockedSince = nil
+            return
+        }
+        let pids = System.minecraftPIDs(user: config.childUser)
+        guard !pids.isEmpty else {
+            minecraftBlockedSince = nil
+            return
+        }
+        guard let since = minecraftBlockedSince else {
+            minecraftBlockedSince = now
+            close(Blocking.minecraftKey, reason, now: now)
+            return
+        }
+        guard now.timeIntervalSince(since) >= 60 else { return }
+        if dryRun {
+            Log.info("DRY_RUN: would kill Minecraft \(pids)")
+        } else {
+            for pid in pids { kill(pid, SIGKILL) }
+            Log.info("Minecraft still running a minute after close (\(reason.rawValue)): killed \(pids)")
+        }
+        minecraftBlockedSince = now
+    }
+
+    private func close(_ key: String, _ reason: BlockReason, now: Date) {
+        if let lastClose, lastClose.key == key, now.timeIntervalSince(lastClose.at) < 10 { return }
+        lastClose = (key, now)
+        if dryRun {
+            Log.info("DRY_RUN: would close \(key) (\(reason.rawValue))")
+            return
+        }
+        Log.info("agent <- close \(key) (\(reason.rawValue))")
+        agent.broadcast(DaemonMessage(type: .close, app: key, reason: reason))
+    }
+
     /// The periodic `state` message: the agent's countdown and phase.
     func sendState() {
         let now = Date()
@@ -198,7 +262,8 @@ actor Daemon {
             graceRemaining: state.graceUntil.map { max(0, Int($0.timeIntervalSince(now))) },
             dryRun: dryRun,
             language: config.language,
-            askState: Policy.askState(state, config: config, now: now, calendar: calendar)))
+            askState: Policy.askState(state, config: config, now: now, calendar: calendar),
+            minecraftRemaining: minecraftRemaining(now)))
     }
 
     func agentMessage(_ message: AgentMessage) async {
@@ -312,7 +377,7 @@ actor Daemon {
                 await apply(.command(command), console: System.consoleUser())
                 sendState()
                 reply = Replies.reply(to: command, after: state, now: Date(), config: config, calendar: calendar,
-                                      agentConnected: agent.hasClients)
+                                      agentConnected: agent.hasClients, minecraftPlayed: minecraftPlayed)
                 Log.info("command \(command) from \(fromID)")
             case let .failure(error):
                 reply = Replies.error(error, config.language)
