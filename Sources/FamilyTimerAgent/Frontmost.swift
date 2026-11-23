@@ -29,8 +29,8 @@ enum FrontmostReader {
 
     static func read() -> Frontmost? {
         guard let app = NSWorkspace.shared.frontmostApplication,
-              let bundleID = app.bundleIdentifier else { return nil }
-        var front = Frontmost(bundleID: bundleID, name: app.localizedName ?? bundleID)
+              let (bundleID, name) = identify(app) else { return nil }
+        var front = Frontmost(bundleID: bundleID, name: name)
         if browsers.contains(bundleID), accessibility {
             let element = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(element, 0.5)
@@ -43,6 +43,23 @@ enum FrontmostReader {
             }
         }
         return front
+    }
+
+    /// Bundle id and name of an app. Minecraft Java (vanilla launcher, Lunar, Prism...) runs
+    /// as a bare `java` process with no bundle id: recognised by its path and reported as
+    /// Minecraft. Any other process without a bundle id is keyed by its executable name.
+    static func identify(_ app: NSRunningApplication) -> (String, String)? {
+        let path = app.executableURL?.path ?? ""
+        let lower = path.lowercased()
+        let javaLike = lower.hasSuffix("/java") || lower.contains("jre.bundle") || lower.contains(".jdk/")
+        if javaLike && (lower.contains("lunarclient") || lower.contains("minecraft")
+                        || lower.contains("prismlauncher") || lower.contains("multimc")) {
+            return ("com.mojang.minecraft", "Minecraft")
+        }
+        if let id = app.bundleIdentifier, !javaLike { return (id, app.localizedName ?? id) }
+        let exe = app.executableURL?.lastPathComponent ?? app.localizedName ?? ""
+        guard !exe.isEmpty else { return nil }
+        return ("exec." + exe, app.localizedName ?? exe)
     }
 
     private static func value(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
