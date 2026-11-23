@@ -30,6 +30,7 @@ public enum DaemonMessageType: String, Codable, Equatable {
     case requestResult = "request_result"
     case lock
     case unlock
+    case close
 }
 
 public struct DaemonMessage: Codable, Equatable {
@@ -44,10 +45,17 @@ public struct DaemonMessage: Codable, Equatable {
     public var approved: Bool?
     /// `state`: what the child can do about more time.
     public var askState: AskState?
+    /// `state`: Minecraft seconds left today, nil = no limit.
+    public var minecraftRemaining: Int?
+    /// `close`: usage key of the app to close.
+    public var app: String?
+    /// `close`.
+    public var reason: BlockReason?
 
     public init(type: DaemonMessageType, remaining: Int? = nil, phase: Phase? = nil,
                 graceRemaining: Int? = nil, dryRun: Bool? = nil, language: Language? = nil,
-                approved: Bool? = nil, askState: AskState? = nil) {
+                approved: Bool? = nil, askState: AskState? = nil,
+                minecraftRemaining: Int? = nil, app: String? = nil, reason: BlockReason? = nil) {
         self.type = type
         self.remaining = remaining
         self.phase = phase
@@ -56,6 +64,9 @@ public struct DaemonMessage: Codable, Equatable {
         self.language = language
         self.approved = approved
         self.askState = askState
+        self.minecraftRemaining = minecraftRemaining
+        self.app = app
+        self.reason = reason
     }
 
     /// The message for a policy action, or nil when the action is not for the agent.

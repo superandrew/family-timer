@@ -67,4 +67,23 @@ public enum AgentTexts {
         t(l, "Today's time is over.",
           "Il tempo di oggi è finito.")
     }
+
+    public static func minecraftWarning(minutes: Int, _ l: Language) -> String {
+        minutes == 1
+            ? t(l, "Minecraft: 1 minute left today. Save your world.",
+                "Minecraft: manca 1 minuto. Salva il mondo.")
+            : t(l, "Minecraft: \(minutes) minutes left today.",
+                "Minecraft: mancano \(minutes) minuti per oggi.")
+    }
+
+    public static func closed(app: String, reason: BlockReason, _ l: Language) -> String {
+        switch reason {
+        case .minecraftOver:
+            return t(l, "Minecraft time is over for today. The game is closing.",
+                     "Il tempo di Minecraft per oggi è finito. Il gioco si chiude.")
+        case .studio:
+            return t(l, "Study time: “\(app)” is closing.",
+                     "È tempo di studio: «\(app)» si chiude.")
+        }
+    }
 }

@@ -37,7 +37,8 @@ public enum Replies {
 
     /// `agentConnected`: whether the menu bar app is connected (nil: unknown, not shown).
     public static func status(_ state: PolicyState, now: Date, config: Config,
-                              calendar: Calendar, agentConnected: Bool? = nil) -> String {
+                              calendar: Calendar, agentConnected: Bool? = nil,
+                              minecraftPlayed: Int? = nil) -> String {
         let l = config.language
         let budget = DayLedger.budget(for: now, config: config, calendar: calendar)
         let ledger = state.ledger
@@ -49,6 +50,14 @@ public enum Replies {
             t(l, "Remaining: \(remaining). State: \(phaseName(state.phase, l)).",
                  "Rimasti: \(remaining). Stato: \(phaseName(state.phase, l))."),
         ]
+        if let played = minecraftPlayed,
+           let left = Policy.minecraftRemaining(state, played: played, now: now, config: config, calendar: calendar) {
+            let mcBudget = DayLedger.minecraftBudget(for: now, config: config, calendar: calendar)
+            let mcExtra = ledger.minecraftExtra ?? 0
+            let mcExtraStr = mcExtra > 0 ? " + \(duration(mcExtra)) extra" : ""
+            lines.append(t(l, "Minecraft: played \(duration(played)) of \(duration(mcBudget))\(mcExtraStr). Remaining: \(duration(left)).",
+                           "Minecraft: giocati \(duration(played)) su \(duration(mcBudget))\(mcExtraStr). Rimasti: \(duration(left))."))
+        }
         if let until = ledger.studioUntil, ledger.inStudio(at: now) {
             let c = clock(until, calendar: calendar)
             lines.append(t(l, "Study time until \(c).", "Studio fino alle \(c)."))
@@ -67,20 +76,21 @@ public enum Replies {
     /// The answer to a parent command, given the state after the command. Starts with the
     /// child's name: with one bot per child in the same group, every answer says whose it is.
     public static func reply(to command: Command, after state: PolicyState, now: Date,
-                             config: Config, calendar: Calendar, agentConnected: Bool? = nil) -> String {
+                             config: Config, calendar: Calendar, agentConnected: Bool? = nil,
+                             minecraftPlayed: Int? = nil) -> String {
         switch command {
         case .status:
-            return status(state, now: now, config: config, calendar: calendar, agentConnected: agentConnected)
+            return status(state, now: now, config: config, calendar: calendar, agentConnected: agentConnected, minecraftPlayed: minecraftPlayed)
         case .help:
-            return body(to: command, after: state, now: now, config: config, calendar: calendar)
+            return body(to: command, after: state, now: now, config: config, calendar: calendar, minecraftPlayed: minecraftPlayed)
         default:
             return config.displayName + ": "
-                + body(to: command, after: state, now: now, config: config, calendar: calendar)
+                + body(to: command, after: state, now: now, config: config, calendar: calendar, minecraftPlayed: minecraftPlayed)
         }
     }
 
     private static func body(to command: Command, after state: PolicyState, now: Date,
-                             config: Config, calendar: Calendar) -> String {
+                             config: Config, calendar: Calendar, minecraftPlayed: Int? = nil) -> String {
         let l = config.language
         let remaining = duration(Policy.remaining(state, now: now, config: config, calendar: calendar))
         let stillLocked = state.ledger.lockedByParent
@@ -106,8 +116,14 @@ public enum Replies {
                 : t(l, "Unlocked. Remaining: \(remaining).", "Sbloccato. Rimasti: \(remaining).")
         case .apps:
             return ""
-        case .minecraft:
-            return ""
+        case let .minecraft(seconds):
+            if let left = Policy.minecraftRemaining(state, played: minecraftPlayed ?? 0, now: now, config: config, calendar: calendar) {
+                return t(l, "Minecraft: added \(duration(seconds)). Remaining: \(duration(left)).",
+                         "Minecraft: aggiunti \(duration(seconds)). Rimasti: \(duration(left)).")
+            } else {
+                return t(l, "Minecraft: added \(duration(seconds)), but no Minecraft limit is set.",
+                         "Minecraft: aggiunti \(duration(seconds)), ma non c'è un limite Minecraft.")
+            }
         }
     }
 
@@ -129,6 +145,7 @@ public enum Replies {
         t(l, """
             /status - time used and left today
             /extra 30 - add time today (30, 45m, 2h, 1h30)
+            /minecraft 15m - more Minecraft today
             /studio 2h - study time: the next 2 hours do not count
             /lock - lock until midnight or /unlock
             /unlock - remove /lock
@@ -138,6 +155,7 @@ public enum Replies {
             """, """
             /status - tempo usato e rimasto oggi
             /extra 30 - aggiunge tempo oggi (30, 45m, 2h, 1h30)
+            /minecraft 15m - più Minecraft oggi
             /studio 2h - studio: le prossime 2 ore non contano
             /lock - blocca fino a mezzanotte o /unlock
             /unlock - toglie /lock
