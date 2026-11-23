@@ -316,10 +316,10 @@ actor Daemon {
             let text = Replies.request(child: config.displayName, seconds: seconds, remaining: left,
                                        config.language)
             do {
-                let id = try await telegram?.send(text, buttons: [
-                    (Replies.approveButton(config.language), "approve:\(requestID)"),
-                    (Replies.denyButton(config.language), "deny:\(requestID)"),
-                ]) ?? 0
+                // The parent chooses the amount: approve:<id>:<seconds> (SPEC 6).
+                let id = try await telegram?.send(text, buttons: Replies.approveChoices.map {
+                    (Replies.approveChoiceButton(seconds: $0), "approve:\(requestID):\($0)")
+                } + [(Replies.denyButton(config.language), "deny:\(requestID)")]) ?? 0
                 requestMessages[requestID] = (id, text)
                 Log.info("request \(requestID) sent to Telegram")
             } catch {
@@ -412,24 +412,26 @@ actor Daemon {
                 Log.info("\(key) is \(category.rawValue) (by \(fromID))")
                 return
             }
-            let parts = data.split(separator: ":", maxSplits: 1).map(String.init)
-            guard parts.count == 2, parts[0] == "approve" || parts[0] == "deny" else {
+            guard let answer = parseAnswerData(data) else {
                 try? await telegram.answerCallback(id: id, text: "?")
                 return
             }
-            let approved = parts[0] == "approve"
-            let actions = await apply(.answer(requestID: parts[1], approved: approved),
+            let approved = answer.approved
+            let actions = await apply(.answer(requestID: answer.requestID, approved: approved,
+                                              seconds: answer.seconds),
                                       console: System.consoleUser())
             sendState()
-            let applied = actions.contains(.requestResult(requestID: parts[1], approved: approved))
+            let applied = actions.contains(.requestResult(requestID: answer.requestID, approved: approved))
             try? await telegram.answerCallback(
                 id: id, text: Replies.callbackAnswer(applied: applied, approved: approved, config.language))
             if applied {
-                let text = requestMessages.removeValue(forKey: parts[1])?.text
+                let text = requestMessages.removeValue(forKey: answer.requestID)?.text
                     ?? Replies.request(child: config.displayName, seconds: config.extensionTime, config.language)
                 try? await telegram.edit(messageID: messageID,
-                                         text: Replies.decided(text, approved: approved, by: fromName, config.language))
-                Log.info("request \(parts[1]) \(approved ? "approved" : "denied") by \(fromID)")
+                                         text: Replies.decided(text, approved: approved, by: fromName,
+                                                               config.language, seconds: answer.seconds))
+                let amount = answer.seconds.map { " \($0)s" } ?? ""
+                Log.info("request \(answer.requestID) \(approved ? "approved\(amount)" : "denied") by \(fromID)")
             }
 
         case .other:

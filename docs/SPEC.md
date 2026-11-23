@@ -150,8 +150,10 @@ Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
 - Commands and button presses are accepted only from `TELEGRAM_CHAT_ID`, and, when
   `PARENT_USER_IDS` is set, only from those Telegram user ids.
 - Request message: "⏰ <child> has used today's time and asks for <EXTENSION_TIME> more
-  minutes." with buttons `approve:<requestID>` / `deny:<requestID>`. After a press the message
-  is edited to show who decided and the outcome.
+  minutes." with buttons ✅ 2m, 5m, 30m, 1h (`approve:<requestID>:<seconds>`, the chosen
+  amount is added) and ❌ (`deny:<requestID>`); `approve:<requestID>` without an amount (older
+  messages) adds `EXTENSION_TIME`. After a press the message is edited to show who decided,
+  the outcome and the amount.
 
 | Command | Effect | Reply |
 |---|---|---|
@@ -265,6 +267,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 019 | L | Done. Minecraft limit: config, `/minecraft`, remaining |
 | 020 | L | Done. Which app to close (Minecraft over, study time), texts, protocol |
 | 021 | L | Done. Menu bar: Minecraft in the title, time and usage lines in the menu |
+| 022 | L | Done. Approve a time request with a chosen amount: 2m, 5m, 30m, 1h |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 
