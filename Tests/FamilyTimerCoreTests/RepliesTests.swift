@@ -124,4 +124,11 @@ final class RepliesTests: XCTestCase {
         XCTAssertEqual(Replies.categoryEmoji(nil), "❓")
         XCTAssertEqual(Replies.categoryLabel(.study, .en), "📚 study")
     }
+
+    func testCodingCategory() {
+        XCTAssertEqual(Replies.categoryEmoji(.coding), "💻")
+        XCTAssertEqual(Replies.categoryLabel(.coding, .it), "💻 coding")
+        XCTAssertEqual(UsageCategory.allCases.map(\.rawValue), ["games", "study", "video", "coding", "other"])
+        XCTAssertEqual(UsageCategory(rawValue: "coding"), .coding)
+    }
 }

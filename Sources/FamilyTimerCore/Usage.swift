@@ -4,6 +4,7 @@ public enum UsageCategory: String, Codable, CaseIterable, Equatable {
     case games
     case study
     case video
+    case coding
     case other
 }
 

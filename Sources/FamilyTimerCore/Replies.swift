@@ -199,6 +199,7 @@ public enum Replies {
         case .games: return "🎮"
         case .study: return "📚"
         case .video: return "📺"
+        case .coding: return "💻"
         case .other: return "▫️"
         case nil: return "❓"
         }
@@ -210,6 +211,7 @@ public enum Replies {
         case .games: return t(l, "🎮 games", "🎮 giochi")
         case .study: return t(l, "📚 study", "📚 studio")
         case .video: return t(l, "📺 video", "📺 video")
+        case .coding: return t(l, "💻 coding", "💻 coding")
         case .other: return t(l, "▫️ other", "▫️ altro")
         }
     }
