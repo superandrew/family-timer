@@ -161,6 +161,7 @@ Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
 | Command | Effect | Reply |
 |---|---|---|
 | `/status` | — | used, budget, extra, remaining, phase, studio end if any |
+| `/settimana`, `/week` | — | the weekly report (below) |
 | `/extra <d>` | adds `d` to today's `extra`; unlocks if locked | new remaining |
 | `/studio <d>` | counting paused for the next `d` of wall-clock time; unlocks if locked | end time |
 | `/lock` | phase `locked` until midnight or `/unlock` | confirmation |
@@ -272,6 +273,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 021 | L | Done. Menu bar: Minecraft in the title, time and usage lines in the menu |
 | 022 | L | Done. Approve a time request with a chosen amount: 2m, 5m, 30m, 1h |
 | 023 | L | Done. Time request with an optional reason |
+| 024 | L | Done. Weekly report: day summaries, request counts, `/settimana` |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 
@@ -334,6 +336,13 @@ seen a few weeks of data).
 - Trust: the report comes from the child's session, so a child who writes to the socket can
   lie about it. Good enough to look at; rules that close apps will check the process list.
 - Next: per-category limits (for example games), decided by the parents with the data.
+
+### Weekly report
+
+At every new day the daemon keeps a summary of the day that ended in `history.json` (35 days):
+used, extra, Minecraft, time requests and how they were answered. On Sunday from 20:00 (once)
+and on `/settimana` each bot sends the last 7 days, today included: total and average, Minecraft,
+requests (yes/no), extra given, time per day, top 3 apps (`Replies.weekly`).
 
 ## 8. Open questions
 

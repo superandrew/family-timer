@@ -14,6 +14,7 @@ struct Paths {
     var state: URL { stateDir.appendingPathComponent("state.json") }
     var telegram: URL { stateDir.appendingPathComponent("telegram.json") }
     var usage: URL { stateDir.appendingPathComponent("usage.json") }
+    var history: URL { stateDir.appendingPathComponent("history.json") }
     var accessibilityNotice: URL { stateDir.appendingPathComponent("accessibility-notice") }
 }
 
@@ -42,6 +43,8 @@ actor Daemon {
     /// Seconds per app and per site (SPEC 9), and what the agent last said is in front.
     private var usage = UsageLog()
     private var front: (report: AgentReport, at: Date)?
+    /// Summaries of the days that ended, for the weekly report (SPEC 6).
+    private var history = History()
     /// The child's text for the request being sent (set only around `apply(.askForTime)`).
     private var requestReason: String?
 
@@ -69,6 +72,10 @@ actor Daemon {
         if let data = try? Data(contentsOf: paths.usage),
            let saved = try? JSONDecoder().decode(UsageLog.self, from: data) {
             usage = saved
+        }
+        if let data = try? Data(contentsOf: paths.history),
+           let saved = try? JSONDecoder().decode(History.self, from: data) {
+            history = saved
         }
     }
 
@@ -102,6 +109,7 @@ actor Daemon {
         if active && state.phase != .locked {
             await countUsage()
         }
+        await weeklyIfDue()
         if Date().timeIntervalSince(lastSummary) >= 300 {
             lastSummary = Date()
             Log.info("status: \(describe()) console \(console?.name ?? "-") idle \(Int(idle))s")
@@ -196,8 +204,38 @@ actor Daemon {
     }
 
     /// Minecraft seconds counted today (only while in front and in use).
-    private var minecraftPlayed: Int {
-        usage.days.first(where: { $0.day == state.ledger.day })?.seconds[Blocking.minecraftKey] ?? 0
+    private var minecraftPlayed: Int { minecraftSeconds(day: state.ledger.day) }
+
+    private func minecraftSeconds(day: String) -> Int {
+        usage.days.first(where: { $0.day == day })?.seconds[Blocking.minecraftKey] ?? 0
+    }
+
+    // MARK: weekly report (SPEC 6)
+
+    /// The last 7 days, today included, as a Telegram message.
+    private func weeklyText() -> String {
+        let today = DaySummary.from(state.ledger, minecraft: minecraftPlayed)
+        let days = history.week(ending: today, calendar: calendar)
+        let entries = usage.entries(from: days.first?.day ?? today.day, to: today.day)
+        return Replies.weekly(child: config.displayName, days: days, entries: entries,
+                              categories: usage.categories, calendar: calendar, config.language)
+    }
+
+    /// Sunday from 20:00, once.
+    private func weeklyIfDue() async {
+        guard let telegram else { return }
+        let now = Date()
+        let today = DayLedger.dayKey(now, calendar: calendar)
+        guard calendar.component(.weekday, from: now) == 1, calendar.component(.hour, from: now) >= 20,
+              history.lastReport != today, state.ledger.day == today else { return }
+        history.lastReport = today
+        saveHistory()
+        do {
+            _ = try await telegram.send(weeklyText())
+            Log.info("weekly report sent")
+        } catch {
+            Log.info("weekly report NOT sent: \(error.localizedDescription)")
+        }
     }
 
     private func minecraftRemaining(_ now: Date) -> Int? {
@@ -304,6 +342,11 @@ actor Daemon {
         let (after, actions) = Policy.reduce(state, event, now: Date(), config: config, calendar: calendar)
         state = after
         if after != before { save() }
+        if after.ledger.day != before.ledger.day {
+            // A day ended: keep its summary for the weekly report.
+            history.record(.from(before.ledger, minecraft: minecraftSeconds(day: before.ledger.day)))
+            saveHistory()
+        }
         if after.phase != before.phase || after.ledger.day != before.ledger.day {
             Log.info("\(event) -> \(describe())")
         }
@@ -379,6 +422,13 @@ actor Daemon {
             let (parsed, target) = parseAddressedCommand(text)
             // Another child's bot in the same group answers this one.
             guard config.isAddressed(by: target) else { return }
+            if case .success(.week) = parsed {
+                Log.info("command week from \(fromID)")
+                do { _ = try await telegram.send(weeklyText()) } catch {
+                    Log.info("reply NOT sent: \(error.localizedDescription)")
+                }
+                return
+            }
             if case let .success(.apps(days)) = parsed {
                 Log.info("command apps(\(days)) from \(fromID)")
                 await usageReply(days: days)
@@ -456,6 +506,10 @@ actor Daemon {
         } catch {
             Log.info("cannot save state: \(error.localizedDescription)")
         }
+    }
+
+    private func saveHistory() {
+        try? write(JSONEncoder().encode(history), to: paths.history)
     }
 
     private func saveOffset() {
