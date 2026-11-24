@@ -140,6 +140,19 @@ public struct UsageLog: Codable, Equatable {
         }
     }
 
+    /// Takes back seconds from `key` on `day` (idle refund). Never below zero; a key that
+    /// reaches zero is removed from that day. Unknown day or key: nothing happens.
+    public mutating func subtract(key: String, seconds: Int, day: String) {
+        guard seconds > 0, let i = days.firstIndex(where: { $0.day == day }),
+              let current = days[i].seconds[key] else { return }
+        let left = current - seconds
+        if left > 0 {
+            days[i].seconds[key] = left
+        } else {
+            days[i].seconds.removeValue(forKey: key)
+        }
+    }
+
     public func entries(from firstDay: String, to lastDay: String) -> [UsageEntry] {
         var totals: [String: Int] = [:]
         for day in days {

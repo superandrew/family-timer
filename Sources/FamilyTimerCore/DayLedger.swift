@@ -59,6 +59,13 @@ public struct DayLedger: Codable, Equatable {
         }
     }
 
+    /// Gives back seconds counted by mistake (idle refund). Never below zero.
+    public mutating func refund(seconds: Int) {
+        if seconds > 0 {
+            used = max(0, used - seconds)
+        }
+    }
+
     public mutating func grantExtra(seconds: Int) {
         extra += seconds
     }

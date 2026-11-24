@@ -57,6 +57,9 @@ public enum PolicyEvent: Equatable {
     /// Every daemon tick. `active`: the console user is the child and HID idle time is
     /// below `IDLE_THRESHOLD`.
     case tick(seconds: Int, active: Bool)
+    /// Idle was detected: these seconds were counted after the child's last input.
+    /// Only `open` gives them back (a phase change is never undone).
+    case refund(seconds: Int)
     /// The child pressed "Ask for more time". `requestID` is made by the daemon.
     case askForTime(requestID: String)
     /// A parent pressed Approve or Deny (already checked with `isFromParent`).
@@ -266,6 +269,11 @@ public enum Policy {
         case .lockConfirmed:
             if s.phase == .locked {
                 s.lockConfirmedAt = now
+            }
+
+        case let .refund(seconds):
+            if s.phase == .open {
+                s.ledger.refund(seconds: seconds)
             }
 
         case .childLoggedIn:
