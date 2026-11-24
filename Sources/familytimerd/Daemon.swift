@@ -45,6 +45,8 @@ actor Daemon {
     private var front: (report: AgentReport, at: Date)?
     /// Summaries of the days that ended, for the weekly report (SPEC 6).
     private var history = History()
+    /// Seconds counted since the last input, given back when idle is detected (SPEC 4.1).
+    private var idleRefund = IdleRefund()
     /// The child's text for the request being sent (set only around `apply(.askForTime)`).
     private var requestReason: String?
 
@@ -102,12 +104,20 @@ actor Daemon {
            System.isScreenLocked(uid: console.uid) {
             await apply(.lockConfirmed, console: console)
         }
+        let (usedBefore, dayBefore) = (state.ledger.used, state.ledger.day)
         await apply(.tick(seconds: Self.tickSeconds, active: active), console: console)
+        let ledgerCounted = state.ledger.day == dayBefore && state.ledger.used - usedBefore == Self.tickSeconds
+        if !ledgerCounted, let refund = idleRefund.take() {
+            await giveBack(refund, console: console)
+        }
         sendState()
         await watchAgent(console: console)
         enforceBlocks()
         if active && state.phase != .locked {
-            await countUsage()
+            let keys = await countUsage()
+            if ledgerCounted {
+                idleRefund.counted(seconds: Self.tickSeconds, idle: idle, keys: keys, day: state.ledger.day)
+            }
         }
         await weeklyIfDue()
         if Date().timeIntervalSince(lastSummary) >= 300 {
@@ -127,10 +137,12 @@ actor Daemon {
 
     /// One tick of active use goes to the app in front and, for a browser, to the site.
     /// When something not yet classified passes 10 minutes, the parents are asked once.
-    private func countUsage() async {
+    /// Returns the usage keys the tick went to (none when nothing was counted).
+    @discardableResult
+    private func countUsage() async -> [String] {
         guard let front, Date().timeIntervalSince(front.at) < 30,
               let frontmost = front.report.frontmost,
-              frontmost.bundleID != "com.apple.loginwindow" else { return }
+              frontmost.bundleID != "com.apple.loginwindow" else { return [] }
         var keys = [UsageLog.appKey(frontmost.bundleID)]
         if let url = frontmost.url, let site = UsageLog.siteKey(url: url) { keys.append(site) }
         let before = keys.map { usage.total(for: $0) }
@@ -142,6 +154,20 @@ actor Daemon {
                 await askCategory(key: key, seconds: now)
             }
         }
+        return keys
+    }
+
+    /// Idle detected: the ticks counted after the last input go back to the day and to the
+    /// apps (so Minecraft too). Only in `open` for the day's time (see `Policy`).
+    private func giveBack(_ refund: (seconds: Int, keys: [String: Int], day: String),
+                          console: (name: String, uid: uid_t)?) async {
+        guard refund.day == state.ledger.day else { return }
+        for (key, seconds) in refund.keys {
+            usage.subtract(key: key, seconds: seconds, day: refund.day)
+        }
+        try? write(JSONEncoder().encode(usage), to: paths.usage)
+        await apply(.refund(seconds: refund.seconds), console: console)
+        Log.info("idle: \(refund.seconds)s given back")
     }
 
     private func askCategory(key: String, seconds: Int) async {

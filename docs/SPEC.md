@@ -58,6 +58,10 @@ The daemon never trusts the agent for anything that matters.
   locked Mac counts as active; the console user stays the child while the screen is locked.
   Only the phase `open` counts (4.2), so in `locked` this does not matter; in `open` it can
   only count against the child.
+- **Idle refund** (task 025): the ticks counted while nobody touched the Mac (HID idle of at
+  least one tick, still under the threshold) are given back when idle is detected, to the
+  day's time (only in `open`) and to the apps and sites (so Minecraft too). Music left
+  playing therefore costs nothing, and glancing at the menu costs only the seconds of input.
 - **The lock state** is read by the daemon itself from the IORegistry: `IOConsoleUsers`, the
   entry whose `kCGSSessionUserIDKey` is the child's uid has `CGSSessionScreenIsLocked = true`
   only while the lock screen is up (verified in 0S1, readable without root). The agent's
@@ -274,6 +278,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 022 | L | Done. Approve a time request with a chosen amount: 2m, 5m, 30m, 1h |
 | 023 | L | Done. Time request with an optional reason |
 | 024 | L | Done. Weekly report: day summaries, request counts, `/settimana` |
+| 025 | S | Done. Idle refund: the seconds counted before idle is detected are given back |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 
