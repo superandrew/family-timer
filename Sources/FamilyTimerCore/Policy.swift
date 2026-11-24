@@ -211,6 +211,7 @@ public enum Policy {
                 actions.append(.requestResult(requestID: requestID, approved: false))
                 break
             }
+            s.ledger.countRequest()
             s.request = PendingRequest(
                 id: requestID, seconds: config.extensionTime,
                 deadline: now.addingTimeInterval(TimeInterval(config.approvalTimeout)))
@@ -222,6 +223,7 @@ public enum Policy {
         case let .answer(requestID, approved, seconds):
             guard let request = s.request, request.id == requestID else { break }
             s.request = nil
+            s.ledger.countAnswer(approved: approved)
             actions.append(.requestResult(requestID: requestID, approved: approved))
             if approved {
                 s.ledger.grantExtra(seconds: seconds ?? request.seconds)
@@ -235,7 +237,7 @@ public enum Policy {
 
         case let .command(command):
             switch command {
-            case .status, .help, .apps:
+            case .status, .help, .apps, .week:
                 break
             case let .extra(seconds):
                 s.askDenied = nil

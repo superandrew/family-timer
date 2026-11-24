@@ -7,6 +7,10 @@ public struct DayLedger: Codable, Equatable {
     public var studioUntil: Date?
     public var lockedByParent: Bool
     public var minecraftExtra: Int?
+    /// Time requests sent today, and how they were answered.
+    public var requests: Int?
+    public var approved: Int?
+    public var denied: Int?
 
     public init(day: String, used: Int = 0, extra: Int = 0,
                 studioUntil: Date? = nil, lockedByParent: Bool = false,
@@ -61,6 +65,18 @@ public struct DayLedger: Codable, Equatable {
 
     public mutating func grantMinecraftExtra(seconds: Int) {
         minecraftExtra = (minecraftExtra ?? 0) + seconds
+    }
+
+    public mutating func countRequest() {
+        requests = (requests ?? 0) + 1
+    }
+
+    public mutating func countAnswer(approved yes: Bool) {
+        if yes {
+            approved = (approved ?? 0) + 1
+        } else {
+            denied = (denied ?? 0) + 1
+        }
     }
 
     public mutating func startStudio(seconds: Int, now: Date) {

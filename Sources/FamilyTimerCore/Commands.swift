@@ -65,6 +65,7 @@ public enum Command: Equatable {
     case unlock
     case help
     case apps(days: Int)
+    case week
 }
 
 public enum CommandError: Error, Equatable {
@@ -116,6 +117,8 @@ public func parseCommand(_ text: String) -> Result<Command, CommandError> {
         return .success(.apps(days: 7))
     case "/oggi", "/today":
         return .success(.apps(days: 1))
+    case "/settimana", "/week":
+        return .success(.week)
     case "/extra", "/studio", "/minecraft", "/mc":
         guard parts.count >= 2 else {
             return .failure(.missingDuration(word))

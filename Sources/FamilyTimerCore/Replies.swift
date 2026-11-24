@@ -114,7 +114,7 @@ public enum Replies {
                 ? t(l, "Parent lock removed, but no time is left: still locked. Use /extra or /studio.",
                        "Blocco del genitore tolto, ma il tempo è finito: resta bloccato. Usa /extra o /studio.")
                 : t(l, "Unlocked. Remaining: \(remaining).", "Sbloccato. Rimasti: \(remaining).")
-        case .apps:
+        case .apps, .week:
             return ""
         case let .minecraft(seconds):
             if let left = Policy.minecraftRemaining(state, played: minecraftPlayed ?? 0, now: now, config: config, calendar: calendar) {
@@ -151,6 +151,7 @@ public enum Replies {
             /unlock - remove /lock
             /app - apps and sites of the last 7 days
             /oggi - apps and sites of today
+            /week - summary of the last 7 days
             Add a name to act on one child only: /extra 30 ann, /lock ann.
             """, """
             /status - tempo usato e rimasto oggi
@@ -161,6 +162,7 @@ public enum Replies {
             /unlock - toglie /lock
             /app - app e siti degli ultimi 7 giorni
             /oggi - app e siti di oggi
+            /settimana - riepilogo degli ultimi 7 giorni
             Aggiungi un nome per un solo figlio: /extra 30 ann, /lock ann.
             """)
     }
@@ -297,6 +299,58 @@ public enum Replies {
             for e in sites {
                 lines.append("\(categoryEmoji(categories[e.key])) \(e.name) \(duration(e.seconds))")
             }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// The weekly report. `days`: 7 summaries, oldest first (`History.week`).
+    public static func weekly(child: String, days: [DaySummary], entries: [UsageEntry],
+                              categories: [String: UsageCategory], calendar: Calendar,
+                              _ l: Language) -> String {
+        guard let first = days.first, let last = days.last else { return "" }
+        let short = { (key: String) -> String in
+            let parts = key.split(separator: "-")
+            guard parts.count == 3 else { return key }
+            return "\(parts[2])/\(parts[1])"
+        }
+        let range = short(first.day) + "–" + short(last.day)
+        let total = days.reduce(0) { $0 + $1.used }
+        let average = total / days.count
+        var lines = [t(l, "📊 \(child), last 7 days (\(range)):", "📊 \(child), ultimi 7 giorni (\(range)):")]
+        lines.append(t(l, "Computer: \(duration(total)) in all, \(duration(average)) a day on average",
+                       "Computer: \(duration(total)) in tutto, in media \(duration(average)) al giorno"))
+        let mcTotal = days.reduce(0) { $0 + $1.minecraft }
+        if mcTotal > 0 {
+            lines.append("Minecraft: \(duration(mcTotal))")
+        }
+        let reqTotal = days.reduce(0) { $0 + $1.requests }
+        if reqTotal > 0 {
+            let a = days.reduce(0) { $0 + $1.approved }
+            let d = days.reduce(0) { $0 + $1.denied }
+            lines.append(t(l, "Time requests: \(reqTotal) (\(a) yes, \(d) no)",
+                           "Richieste di tempo: \(reqTotal) (\(a) sì, \(d) no)"))
+        }
+        let extraTotal = days.reduce(0) { $0 + $1.extra }
+        if extraTotal > 0 {
+            lines.append(t(l, "Extra time given: \(duration(extraTotal))",
+                           "Tempo extra dato: \(duration(extraTotal))"))
+        }
+        let weekdays = l == .en ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+                                : ["dom", "lun", "mar", "mer", "gio", "ven", "sab"]
+        let dayLines = days.map { day -> String in
+            guard let date = History.date(day.day, calendar: calendar) else { return "" }
+            let w = calendar.component(.weekday, from: date)
+            let name = weekdays[(w - 1 + 7) % 7]
+            return "\(name) \(duration(day.used))"
+        }
+        lines.append(dayLines.joined(separator: " · "))
+        let top = entries.filter { !UsageLog.isSite($0.key) && $0.seconds >= 60 }.prefix(3)
+        if !top.isEmpty {
+            let items = top.map { e -> String in
+                let emoji = UsageLog.isBrowser(e.key) ? "🌐" : categoryEmoji(categories[e.key])
+                return "\(emoji) \(e.name) \(duration(e.seconds))"
+            }
+            lines.append(t(l, "Top: ", "In cima: ") + items.joined(separator: " · "))
         }
         return lines.joined(separator: "\n")
     }
