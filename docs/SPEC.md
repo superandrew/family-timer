@@ -154,6 +154,9 @@ Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
   amount is added) and ❌ (`deny:<requestID>`); `approve:<requestID>` without an amount (older
   messages) adds `EXTENSION_TIME`. After a press the message is edited to show who decided,
   the outcome and the amount.
+- Before sending, the agent asks "What do you need it for?" (optional, one line; 60 s while
+  locked). The text travels as `{"request_time":true,"reason":...}`; the daemon cleans it
+  (`Replies.cleanReason`: one line, at most 120 characters) and adds `📝 <text>` to the request.
 
 | Command | Effect | Reply |
 |---|---|---|
@@ -268,6 +271,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 020 | L | Done. Which app to close (Minecraft over, study time), texts, protocol |
 | 021 | L | Done. Menu bar: Minecraft in the title, time and usage lines in the menu |
 | 022 | L | Done. Approve a time request with a chosen amount: 2m, 5m, 30m, 1h |
+| 023 | L | Done. Time request with an optional reason |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 

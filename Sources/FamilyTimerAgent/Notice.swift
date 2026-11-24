@@ -11,13 +11,19 @@ final class Notice {
     private var hosting: NSHostingView<NoticeView>?
 
     var isVisible: Bool { panel?.isVisible ?? false }
+    /// What the child typed in the text field (when the card has one).
+    var text: String { model.text }
 
     /// `text`: its first sentence becomes the title, the rest the line below.
     /// `countdown`: seconds shown as a bar that empties (the caller acts when it ends).
-    func show(_ text: String, icon: String = "⏱", countdown: TimeInterval? = nil,
+    /// `field`: placeholder of an optional one-line text field (Return presses `secondary`).
+    func show(_ text: String, icon: String = "⏱", countdown: TimeInterval? = nil, field: String? = nil,
               primary primaryTitle: String, _ primaryAction: (() -> Void)? = nil,
               secondary secondaryTitle: String? = nil, _ secondaryAction: (() -> Void)? = nil) {
         let (title, message) = Notice.split(text)
+        model.field = field
+        model.text = ""
+        model.shown += 1
         model.icon = icon
         model.title = title
         model.message = message
@@ -117,6 +123,10 @@ final class NoticeModel: ObservableObject {
     @Published var secondary: String?
     @Published var deadline: Date?
     @Published var total: TimeInterval = 0
+    @Published var field: String?
+    @Published var text = ""
+    /// Bumped at every `show`, to focus the text field again.
+    @Published var shown = 0
     var onPrimary: () -> Void = {}
     var onSecondary: () -> Void = {}
 }
@@ -124,6 +134,7 @@ final class NoticeModel: ObservableObject {
 struct NoticeView: View {
     static let width: CGFloat = 440
     @ObservedObject var model: NoticeModel
+    @FocusState private var fieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -142,6 +153,14 @@ struct NoticeView: View {
                     }
                 }
                 Spacer(minLength: 0)
+            }
+            if let placeholder = model.field {
+                TextField(placeholder, text: $model.text)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 14))
+                    .focused($fieldFocused)
+                    .onSubmit { model.onSecondary() }
+                    .task(id: model.shown) { fieldFocused = true }
             }
             if let deadline = model.deadline, model.total > 0 {
                 TimelineView(.periodic(from: .now, by: 0.1)) { context in

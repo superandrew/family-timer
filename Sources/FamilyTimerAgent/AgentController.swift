@@ -192,11 +192,19 @@ final class AgentController: NSObject {
         }
     }
 
+    /// First "What do you need it for?" (optional), then the request.
     private func ask() {
+        guard askState == .available, !asked || phase == .open else { return }
+        notice.show(AgentTexts.reasonPrompt(language), icon: "✉️", field: AgentTexts.reasonPlaceholder(language),
+                    primary: AgentTexts.cancelButton(language),
+                    secondary: AgentTexts.sendButton(language), { [weak self] in self?.sendRequest() })
+    }
+
+    private func sendRequest() {
         guard askState == .available, !asked || phase == .open else { return }
         asked = true
         askState = .waiting
-        connection.send(AgentMessage.requestTime)
+        connection.send(TimeRequest(reason: String(notice.text.prefix(500))))
         notice.show(AgentTexts.waiting(language), icon: "✉️", primary: AgentTexts.okButton(language))
         refreshMenu()
     }
@@ -296,10 +304,20 @@ final class AgentController: NSObject {
         Screen.lock()
     }
 
+    /// While locked: a minute to write what for (optional), then the request and lock again.
     private func askWhileLocked() {
         guard phase == .locked, askState == .available else { return }
+        hold(60)
+        notice.show(AgentTexts.reasonPrompt(language), icon: "✉️", countdown: 60,
+                    field: AgentTexts.reasonPlaceholder(language),
+                    primary: AgentTexts.cancelButton(language), { [weak self] in self?.lockNow() },
+                    secondary: AgentTexts.sendButton(language), { [weak self] in self?.sendWhileLocked() })
+    }
+
+    private func sendWhileLocked() {
+        guard phase == .locked, askState == .available else { return }
         askState = .waiting
-        connection.send(AgentMessage.requestTime)
+        connection.send(TimeRequest(reason: String(notice.text.prefix(500))))
         notice.show(AgentTexts.lockedWaiting(language), icon: "✉️", countdown: 3,
                     primary: AgentTexts.okButton(language), { [weak self] in self?.lockNow() })
         hold(3)

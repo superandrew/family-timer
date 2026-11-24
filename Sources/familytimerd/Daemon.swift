@@ -42,6 +42,8 @@ actor Daemon {
     /// Seconds per app and per site (SPEC 9), and what the agent last said is in front.
     private var usage = UsageLog()
     private var front: (report: AgentReport, at: Date)?
+    /// The child's text for the request being sent (set only around `apply(.askForTime)`).
+    private var requestReason: String?
 
     init(config: Config, paths: Paths, dryRun: Bool, agent: AgentLink) {
         self.config = config
@@ -278,14 +280,21 @@ actor Daemon {
         case .heartbeat:
             break
         case .requestTime:
-            let id = String(UUID().uuidString.prefix(8)).lowercased()
-            Log.info("agent asks for more time (request \(id))")
-            await apply(.askForTime(requestID: id), console: System.consoleUser())
-            sendState()
+            await askForTime(reason: nil)
         case .locked:
             // Informational only: the daemon reads the lock state itself in `tick`.
             break
         }
+    }
+
+    /// "Ask for more time", with what the child wrote (cleaned; shown to the parents only).
+    func askForTime(reason: String?) async {
+        let id = String(UUID().uuidString.prefix(8)).lowercased()
+        requestReason = Replies.cleanReason(reason)
+        Log.info("agent asks for more time (request \(id)\(requestReason == nil ? "" : ", with a reason"))")
+        await apply(.askForTime(requestID: id), console: System.consoleUser())
+        requestReason = nil
+        sendState()
     }
 
     /// Reduce, persist, then perform the actions.
@@ -314,7 +323,7 @@ actor Daemon {
             let left = state.phase == .open
                 ? Policy.remaining(state, now: Date(), config: config, calendar: calendar) : nil
             let text = Replies.request(child: config.displayName, seconds: seconds, remaining: left,
-                                       config.language)
+                                       reason: requestReason, config.language)
             do {
                 // The parent chooses the amount: approve:<id>:<seconds> (SPEC 6).
                 let id = try await telegram?.send(text, buttons: Replies.approveChoices.map {
