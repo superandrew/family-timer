@@ -24,6 +24,23 @@ public struct AgentReport: Codable, Equatable {
     }
 }
 
+/// "Ask for more time" with what the child wrote (optional). Sent instead of the bare
+/// `request_time` message; the daemon cleans the text with `Replies.cleanReason`.
+public struct TimeRequest: Codable, Equatable {
+    public var requestTime: Bool
+    public var reason: String?
+
+    public init(reason: String? = nil) {
+        self.requestTime = true
+        self.reason = reason
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case requestTime = "request_time"
+        case reason
+    }
+}
+
 public enum DaemonMessageType: String, Codable, Equatable {
     case state
     case showExpiredDialog = "show_expired_dialog"

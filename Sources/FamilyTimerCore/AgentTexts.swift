@@ -84,6 +84,16 @@ public enum AgentTexts {
     public static func askButton(_ l: Language) -> String { t(l, "Ask for more time", "Chiedi altro tempo") }
     public static func okButton(_ l: Language) -> String { "OK" }
 
+    public static func reasonPrompt(_ l: Language) -> String {
+        t(l, "Ask for more time.\nWhat do you need it for? (optional)",
+             "Chiedi altro tempo.\nCosa devi fare? (facoltativo)")
+    }
+    public static func reasonPlaceholder(_ l: Language) -> String {
+        t(l, "e.g. finish my maths homework", "es. finire i compiti di matematica")
+    }
+    public static func sendButton(_ l: Language) -> String { t(l, "Send", "Invia") }
+    public static func cancelButton(_ l: Language) -> String { t(l, "Cancel", "Annulla") }
+
     public static func waiting(_ l: Language) -> String {
         t(l, "Request sent. Waiting for a parent…", "Richiesta inviata. Aspetta la risposta di un genitore…")
     }

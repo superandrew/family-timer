@@ -165,13 +165,33 @@ public enum Replies {
             """)
     }
 
-    public static func request(child: String, seconds: Int, remaining: Int? = nil, _ l: Language) -> String {
+    /// The child's text, safe to show: control characters and new lines become spaces,
+    /// runs of spaces become one, trimmed; nil when empty; longer than 120 characters is
+    /// cut to 119 characters plus "…".
+    public static func cleanReason(_ text: String?) -> String? {
+        guard let text else { return nil }
+        let spaced = String(text.map { $0.isNewline || ($0.unicodeScalars.first.map { CharacterSet.controlCharacters.contains($0) } ?? false) ? " " : $0 })
+        let words = spaced.split(whereSeparator: { $0 == " " || $0 == "\t" })
+        let joined = words.joined(separator: " ")
+        if joined.isEmpty { return nil }
+        if joined.count > 120 { return String(joined.prefix(119)) + "…" }
+        return joined
+    }
+
+    public static func request(child: String, seconds: Int, remaining: Int? = nil,
+                               reason: String? = nil, _ l: Language) -> String {
+        let text: String
         if let remaining, remaining > 0 {
-            return t(l, "⏰ \(child) has \(duration(remaining)) left and asks for \(duration(seconds)) more.",
+            text = t(l, "⏰ \(child) has \(duration(remaining)) left and asks for \(duration(seconds)) more.",
                      "⏰ \(child) ha ancora \(duration(remaining)) e chiede altri \(duration(seconds)).")
+        } else {
+            text = t(l, "⏰ \(child) has used today's time and asks for \(duration(seconds)) more.",
+                     "⏰ \(child) ha finito il tempo di oggi e chiede altri \(duration(seconds)).")
         }
-        return t(l, "⏰ \(child) has used today's time and asks for \(duration(seconds)) more.",
-                 "⏰ \(child) ha finito il tempo di oggi e chiede altri \(duration(seconds)).")
+        if let reason {
+            return text + "\n" + t(l, "📝 What for: \(reason)", "📝 Cosa deve fare: \(reason)")
+        }
+        return text
     }
 
     public static func approveButton(_ l: Language) -> String { t(l, "✅ Approve", "✅ Approva") }
