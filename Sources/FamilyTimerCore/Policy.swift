@@ -129,7 +129,10 @@ public enum Policy {
 
     public static func askState(_ s: PolicyState, config: Config, now: Date? = nil,
                                 calendar: Calendar = .current) -> AskState {
-        if s.request != nil { return .waiting }
+        // A request past its deadline no longer blocks a new one (only when `now` is known).
+        if let request = s.request, !(now.map { $0 >= request.deadline } ?? false) {
+            return .waiting
+        }
         if s.askDenied == true { return .denied }
         if config.telegramBotToken.isEmpty || s.ledger.lockedByParent { return .unavailable }
         if s.phase == .grace || s.phase == .locked { return .available }
@@ -208,13 +211,15 @@ public enum Policy {
             let early = s.phase == .open
                 && s.ledger.remaining(budget: budget) <= askEarlyWindow
                 && !s.ledger.inStudio(at: now)
-            guard s.phase == .grace || s.phase == .locked || early, s.request == nil,
+            let expired = s.request.map { now >= $0.deadline } ?? true
+            guard s.phase == .grace || s.phase == .locked || early, expired,
                   s.askDenied != true, !s.ledger.lockedByParent else { break }
             if config.telegramBotToken.isEmpty {
                 actions.append(.requestResult(requestID: requestID, approved: false))
                 break
             }
             s.ledger.countRequest()
+            supersedeRequest(&s, actions: &actions)
             s.request = PendingRequest(
                 id: requestID, seconds: config.extensionTime,
                 deadline: now.addingTimeInterval(TimeInterval(config.approvalTimeout)))

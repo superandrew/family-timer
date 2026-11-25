@@ -135,6 +135,8 @@ Rules fixed by task 005 (`Policy.reduce`, the tests are the reference):
   After a Deny no request until midnight or a parent's `/extra`, `/studio`, `/unlock`.
   No request under `/lock`. Without a Telegram token the request is refused at once.
 - A request survives the lock, so a late Approve works; a late Deny changes nothing.
+  Past its deadline it no longer blocks: the child can ask again and the new request
+  replaces it (the old Telegram message says it is no longer needed; task 026).
   `/extra`, `/studio` and `/lock` cancel an open request.
 - `/lock` wins: `/extra`, `/studio` and a late Approve add time but do not unlock while it
   holds. `/unlock` with no time left (and no `/studio`) leaves the child locked.
@@ -279,6 +281,7 @@ Tasks live in `docs/tasks/`. `L` = written by the local model with llm-dev, then
 | 023 | L | Done. Time request with an optional reason |
 | 024 | L | Done. Weekly report: day summaries, request counts, `/settimana` |
 | 025 | S | Done. Idle refund: the seconds counted before idle is detected are given back |
+| 026 | L | Done. A request nobody answered no longer stops the child from asking again |
 
 Every enforcement path gets a `DRY_RUN=1` mode that logs instead of locking or logging out.
 
